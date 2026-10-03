@@ -3,27 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b0806" />
+    <meta name="theme-color" content="#150f0b" />
     <meta name="description" content="VedaSutra: an AI guide to Vedic mathematics and ancient Indian science. Step-by-step solutions and sourced answers." />
     <title>VedaSutra – Vedic Math &amp; Ancient Science Assistant</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230b0806%22/><text x=%2250%22 y=%2272%22 font-size=%2270%22 text-anchor=%22middle%22 fill=%22%23d3a95c%22>ॐ</text></svg>" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=Noto+Serif+Devanagari:wght@400;500&display=swap" rel="stylesheet" />
+    <script>
+      /* Apply the saved theme before anything paints, so there is no flash of the wrong colours. */
+      try { if (localStorage.getItem('theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (e) {}
+    </script>
     <style>
       /* Shown instantly, before any JavaScript has loaded; React replaces it when the app starts. */
-      body { margin: 0; background: #0b0806; }
-      #boot { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; font-family: Georgia, serif; color: #e3c487; }
-      #boot .ring { width: 72px; height: 72px; margin: 0 auto 18px; border-radius: 50%; border: 2px solid rgba(185, 138, 62, 0.2); border-top-color: #e3c487; animation: bootspin 1s linear infinite; }
-      #boot p { margin: 0; font-size: 26px; letter-spacing: 0.04em; }
-      #boot small { display: block; margin-top: 6px; font: 13px system-ui, sans-serif; color: rgba(246, 234, 214, 0.5); }
+      body { margin: 0; background: #150f0b; }
+      html[data-theme='light'] body { background: #fdf6e8; }
+      #boot { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; font-family: Georgia, serif; color: #f2d38f; }
+      html[data-theme='light'] #boot { color: #9a5a0d; }
+      #boot .ring { width: 96px; height: 96px; margin: 0 auto 22px; border-radius: 50%; border: 2px solid rgba(207, 159, 74, 0.25); border-top-color: #f2d38f; border-right-color: rgba(228, 185, 104, 0.6); animation: bootspin 5s linear infinite; }
+      #boot p { margin: 0; font-size: 34px; letter-spacing: 0.04em; }
+      #boot small { display: block; margin-top: 8px; font: 14px system-ui, sans-serif; opacity: 0.55; }
       @keyframes bootspin { to { transform: rotate(360deg); } }
-      @media (prefers-reduced-motion: reduce) { #boot .ring { animation-duration: 3s; } }
+      @media (prefers-reduced-motion: reduce) { #boot .ring { animation-duration: 12s; } }
     </style>
   </head>
   <body>
     <div id="root">
-      <div id="boot" role="status" aria-label="Loading VedaSutra"><div><div class="ring"></div><p>VedaSutra</p><small>Loading…</small></div></div>
+      <div id="boot" role="status" aria-label="Loading VedaSutra"><div><div class="ring"></div><p>VedaSutra</p><small>Gathering ancient knowledge…</small></div></div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

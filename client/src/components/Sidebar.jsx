@@ -18,7 +18,7 @@ export default function Sidebar({ open, collapsed, onClose, onNewChat, onTopic, 
       {open && <div className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={onClose} />}
       <aside
         aria-label="Sidebar"
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col gap-4 border-r border-white/5 bg-ink-900 p-4 transition-transform md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 flex-col gap-4 border-r border-gold-500/20 bg-ink-900/80 p-4 shadow-2xl backdrop-blur-xl transition-transform md:static md:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         } ${collapsed ? 'md:hidden' : ''}`}
       >
@@ -49,7 +49,7 @@ export default function Sidebar({ open, collapsed, onClose, onNewChat, onTopic, 
               key={id}
               onClick={() => onTopic(id)}
               title="Click again for a different question"
-              className="flex w-full items-center gap-3 rounded-xl border border-white/5 bg-ink-800 px-4 py-3 text-left transition hover:border-gold-500/40"
+              className="flex w-full items-center gap-3 rounded-xl border border-gold-500/20 bg-ink-800/70 px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-gold-400/70 hover:bg-ink-800"
             >
               <Icon className="text-gold-300" width={26} height={26} />
               <span className="flex-1">{title}</span>

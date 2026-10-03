@@ -3,13 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { profileApi } from '../api/profile.js';
 import { errorMessage } from '../api/client.js';
+import ThemeToggle from '../components/ThemeToggle.jsx';
 import { ChartIcon, CheckIcon, FlameIcon, HomeIcon, LockIcon, LogoutIcon, LotusIcon, ChevronLeft } from '../components/Icons.jsx';
 
 const dayLabel = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
 function Tile({ label, value, hint, Icon }) {
   return (
-    <div className="rounded-2xl border border-gold-500/25 bg-ink-900/70 p-4">
+    <div className="rounded-2xl border border-gold-500/30 bg-ink-900/65 p-4 shadow-lg shadow-black/10 backdrop-blur-md transition hover:-translate-y-0.5">
       <div className="flex items-center justify-between text-parchment/50">
         <span className="text-xs uppercase tracking-wider">{label}</span>
         {Icon && <Icon width={18} height={18} className="text-gold-400" />}
@@ -21,7 +22,7 @@ function Tile({ label, value, hint, Icon }) {
 }
 
 const Card = ({ title, children, className = '' }) => (
-  <section className={`rounded-2xl border border-gold-500/25 bg-ink-900/70 p-5 ${className}`}>
+  <section className={`fade-up rounded-2xl border border-gold-500/30 bg-ink-900/65 p-5 shadow-lg shadow-black/10 backdrop-blur-md ${className}`}>
     <h2 className="mb-4 font-serif text-2xl text-parchment">{title}</h2>
     {children}
   </section>
@@ -117,11 +118,12 @@ export default function Profile() {
   const memberSince = data?.user.memberSince && new Date(data.user.memberSince).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
   return (
-    <div className="min-h-dvh bg-ink-950 text-parchment">
-      <header className="sticky top-0 z-20 border-b border-white/5 bg-ink-950/85 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-5 py-3">
+    <div className="min-h-dvh text-parchment">
+      <header className="sticky top-0 z-20 border-b border-gold-500/15 bg-ink-950/55 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-3">
           <Link to="/chat" className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-parchment/70 hover:bg-white/5 hover:text-gold-300"><ChevronLeft width={18} height={18} /> Back to chat</Link>
-          <Link to="/" className="ml-auto flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-parchment/70 hover:bg-white/5 hover:text-gold-300"><HomeIcon width={16} height={16} /> Home</Link>
+          <ThemeToggle className="ml-auto h-9 w-9" />
+          <Link to="/" className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-parchment/70 hover:bg-white/5 hover:text-gold-300"><HomeIcon width={16} height={16} /> Home</Link>
           <button
             onClick={async () => {
               navigate('/'); // first leave the private page, otherwise the route guard sends you to /login
@@ -134,9 +136,9 @@ export default function Profile() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-6 px-5 py-8">
+      <main className="mx-auto max-w-6xl space-y-6 px-5 py-8">
         {/* Identity */}
-        <section className="relative overflow-hidden rounded-3xl border border-gold-500/40 bg-gradient-to-br from-ink-800 via-ink-900 to-ink-950 p-6 sm:p-8">
+        <section className="relative overflow-hidden rounded-3xl border border-gold-500/50 bg-gradient-to-br from-ink-800/90 via-ink-900/80 to-ink-950/70 p-6 shadow-2xl backdrop-blur-md sm:p-8">
           <LotusIcon className="pointer-events-none absolute -right-6 -top-6 text-gold-500/10" width={220} height={220} strokeWidth={0.6} aria-hidden />
           <div className="relative flex flex-wrap items-center gap-5">
             <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 font-serif text-4xl font-bold text-ink-950 ring-4 ring-gold-500/20">

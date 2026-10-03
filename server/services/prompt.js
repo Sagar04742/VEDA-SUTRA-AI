@@ -53,8 +53,8 @@ DEEP EXPLAIN MODE (the user asked for it)
 const WEB_SEARCH = `
 
 WEB SEARCH MODE (the user asked for it)
-- You may use Google Search for current or external information that the knowledge base lacks. Check the knowledge base first.
-- Clearly label anything that comes from the web as "From the web" and keep it apart from knowledge-base claims. Web content is not verified, and provenance labels apply only to knowledge-base entries.`;
+- You may search the web (the searchWeb tool searches Wikipedia; Google Search may also be available) for current or external information that the knowledge base lacks. Always check the knowledge base first.
+- Clearly label anything that comes from the web as "From the web (Wikipedia)", mention the page title, and keep it apart from knowledge-base claims. Web content is general and not verified: it is not primary evidence, and provenance labels apply only to knowledge-base entries.`;
 
 // Answer length for the three levels in the model picker (Lite / Plus / Pro).
 const STYLES = {

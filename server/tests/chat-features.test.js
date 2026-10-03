@@ -9,7 +9,7 @@ let stop, app, Chat, Image, cookieA, cookieB, calls, behaviour;
 const fakeAi = {
   configError: () => null,
   tiers: () => buildTiers({ model: 'lite-m', modelPlus: 'plus-m', modelPro: 'pro-m' }).map(publicTier),
-  capabilities: () => ({ webSearch: false }),
+  capabilities: () => ({ webSearch: true, webSearchSource: 'Wikipedia' }),
   generateTitle: async (t) => `T: ${t.slice(0, 12)}`,
   streamChat: async (args) => {
     calls.push(args);
@@ -141,7 +141,7 @@ describe('answer levels', () => {
     const list = await request(app).get('/api/models').set('Cookie', cookieA);
     expect(list.status).toBe(200);
     expect(list.body.default).toBe('lite');
-    expect(list.body.capabilities).toEqual({ webSearch: false }); // the UI greys out Web search when it cannot work
+    expect(list.body.capabilities).toEqual({ webSearch: true, webSearchSource: 'Wikipedia' }); // the UI says where web results come from
     expect(list.body.tiers.map((t) => t.name)).toEqual(['Sutra Lite', 'Sutra Plus', 'Sutra Pro']);
     expect(Object.keys(list.body.tiers[0]).sort()).toEqual(['id', 'model', 'name', 'tagline']);
 

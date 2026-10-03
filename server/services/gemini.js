@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { buildSystemPrompt } from './prompt.js';
-import { executeTool, isSolverTool, toolDeclarations } from './tools.js';
+import { executeTool, isSolverTool, toolDeclarations, webSearchDeclaration } from './tools.js';
 import { humanDuration, parseQuotaError } from '../utils/quota.js';
 
 const SEARCH_BLOCK_MS = 30 * 60 * 1000;
@@ -14,8 +14,6 @@ const toContents = (messages) =>
     if (m.content) parts.push({ text: m.content });
     return { role: m.role === 'assistant' ? 'model' : 'user', parts };
   });
-
-const SEARCH_UNAVAILABLE = 'Web search is not available with your current Gemini plan or model, so this answer uses the knowledge base only.';
 
 // Errors worth answering again on the next model: rate limits, a busy model, or a model that is gone.
 const isSwitchable = (err) => parseQuotaError(err).rateLimited || [500, 503, 404].includes(err?.status ?? err?.code);
@@ -57,7 +55,8 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
     },
 
     // What this key can do right now (shown by the UI).
-    capabilities: () => ({ webSearch: !searchBlocked() }),
+    // Web search always works: Google Search when the plan includes it, otherwise our Wikipedia search tool.
+    capabilities: () => ({ webSearch: true, webSearchSource: searchBlocked() ? 'Wikipedia' : 'Google Search' }),
 
     // One tiny request at start-up so the Web search toggle is correct before anyone clicks it.
     async probeWebSearch() {
@@ -81,14 +80,16 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
       const shared = { shownText: false, shownSolver: new Set() };
       for (let i = 0; i < chain.length; i++) {
         try {
-          return await runOnce(chain[i].id, args, shared);
+          const result = await runOnce(chain[i].id, args, shared);
+          // One notice, naming the level the user chose and the one that really answered (not every hop in between).
+          if (i > 0 && chain[0].label && chain[i].label && chain[0].label !== chain[i].label) {
+            args.onNotice?.(`${chain[0].label} is busy or at its free usage limit right now, so this answer came from ${chain[i].label}.`);
+          }
+          return result;
         } catch (err) {
           const next = chain[i + 1];
           if (!next || !isSwitchable(err) || shared.shownText || args.signal?.aborted) throw err;
           console.warn(`Model ${chain[i].id} unavailable (${err?.status ?? 'error'}); answering with ${next.id} instead.`);
-          if (chain[i].label && next.label && chain[i].label !== next.label) {
-            args.onNotice?.(`${chain[i].label} is busy or at its free usage limit right now, so this answer came from ${next.label}.`);
-          }
         }
       }
     },
@@ -100,8 +101,9 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
     const maxRounds = options.deepExplain ? DEEP_TOOL_ROUNDS : MAX_TOOL_ROUNDS;
     const solver = [];
     const sources = new Map();
+    // Web search: Google Search when the plan allows it, otherwise our own Wikipedia search tool.
     let useSearch = Boolean(options.webSearch) && !searchBlocked();
-    if (options.webSearch && !useSearch) onNotice(SEARCH_UNAVAILABLE);
+    let useWiki = Boolean(options.webSearch) && !useSearch;
     let text = '';
     const result = (aborted) => ({ text, solver, sources: [...sources.values()], aborted });
 
@@ -118,7 +120,8 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
         modelParts = [];
         calls = [];
         roundHasText = false;
-        const tools = useTools ? [{ functionDeclarations: toolDeclarations }, ...(useSearch ? [{ googleSearch: {} }] : [])] : [];
+        const declarations = [...toolDeclarations, ...(useWiki ? [webSearchDeclaration] : [])];
+        const tools = useTools ? [{ functionDeclarations: declarations }, ...(useSearch ? [{ googleSearch: {} }] : [])] : [];
         try {
           const stream = await getClient().models.generateContentStream({
             model: modelName,
@@ -153,11 +156,11 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
           if (signal?.aborted) return result(true); // keep the partial answer
           const status = err?.status ?? err?.code;
           // Google Search is not available on every model or plan (it can be refused as a bad request,
-          // forbidden, or "quota 0" on free keys): carry on without it, and say so.
+          // forbidden, or "quota 0" on free keys): switch to our own Wikipedia search tool and try again.
           if (useSearch && useTools && !roundHasText && [400, 403, 429].includes(status)) {
             useSearch = false;
+            useWiki = true;
             if (status !== 429 || parseQuotaError(err).retryAfterSeconds == null) blockSearch();
-            onNotice(SEARCH_UNAVAILABLE);
             continue;
           }
           // A busy model (500/503) is usually back within a second: retry once before any text was sent.
@@ -178,6 +181,9 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
       const responses = [];
       for (const call of calls) {
         const out = await executeTool(call.name, call.args ?? {}, toolContext);
+        if (call.name === 'searchWeb') {
+          for (const r of out.results ?? []) if (!sources.has(r.url)) sources.set(r.url, { title: r.title, uri: r.url });
+        }
         if (isSolverTool(call.name) && !out.error) {
           const entry = { tool: call.name, args: call.args ?? {}, method: out.method, answer: out.answer, steps: out.steps };
           solver.push(entry);

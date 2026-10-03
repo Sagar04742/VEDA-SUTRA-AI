@@ -101,7 +101,8 @@ describe('falling down the chain', () => {
     const out = await run(client, { onNotice: (n) => notices.push(n) });
     expect(out.text).toBe('lite answer');
     expect(client.requests.map((r) => r.model)).toEqual(['pro-m', 'plus-m', 'plus-m', 'lite-m']); // plus got its one busy-retry first
-    expect(notices.length).toBe(2); // Pro->Plus and Plus->Lite
+    // One notice only: it names the level the user chose and the one that really answered (not each hop in between).
+    expect(notices).toEqual(['Sutra Pro is busy or at its free usage limit right now, so this answer came from Sutra Lite.']);
 
     const gone = fakeClient([err(404), [{ text: 'from plus' }]]);
     expect((await run(gone)).text).toBe('from plus');
@@ -182,20 +183,17 @@ describe('Google Search availability', () => {
     };
   }
 
-  it('after one refusal it stops trying search, says so, and reports it as unavailable', async () => {
-    const client = recorder([quotaZero(), [{ text: 'from the knowledge base' }], [{ text: 'second answer' }]]);
+  it('after one refusal it stops trying Google Search and uses the Wikipedia tool instead', async () => {
+    const client = recorder([quotaZero(), [{ text: 'first answer' }], [{ text: 'second answer' }]]);
     const svc = service(client);
-    expect(svc.capabilities().webSearch).toBe(true); // unknown until tried
-    const notices = [];
-    await ask(svc, { options: { webSearch: true }, onNotice: (n) => notices.push(n) });
-    expect(svc.capabilities().webSearch).toBe(false);
-    expect(notices).toHaveLength(1);
+    expect(svc.capabilities()).toEqual({ webSearch: true, webSearchSource: 'Google Search' }); // unknown until tried
+    await ask(svc, { options: { webSearch: true } });
+    expect(svc.capabilities()).toEqual({ webSearch: true, webSearchSource: 'Wikipedia' }); // web search stays available
 
-    const second = [];
-    await ask(svc, { options: { webSearch: true }, onNotice: (n) => second.push(n) });
-    expect(hasSearch(client.requests.at(-1))).toBe(false); // did not even attempt it
+    await ask(svc, { options: { webSearch: true } });
+    expect(hasSearch(client.requests.at(-1))).toBe(false); // did not even attempt Google again
+    expect(client.requests.at(-1).config.tools[0].functionDeclarations.some((d) => d.name === 'searchWeb')).toBe(true);
     expect(client.requests).toHaveLength(3); // refused, answered, answered: no wasted request
-    expect(second[0]).toMatch(/Web search is not available/);
   });
 
   it('a per-minute limit is not mistaken for "search is not available"', async () => {
@@ -204,17 +202,17 @@ describe('Google Search availability', () => {
     expect(svc.capabilities().webSearch).toBe(true);
   });
 
-  it('the start-up probe blocks on quota-0 / refusal and unblocks when search works', async () => {
+  it('the start-up probe notes quota-0 / refusal (Wikipedia is used) and keeps Google when it works', async () => {
     const refused = service(recorder([quotaZero()]));
     await refused.probeWebSearch();
-    expect(refused.capabilities().webSearch).toBe(false);
+    expect(refused.capabilities().webSearchSource).toBe('Wikipedia');
 
     const busy = service(recorder([perMinute()]));
     await busy.probeWebSearch();
-    expect(busy.capabilities().webSearch).toBe(true);
+    expect(busy.capabilities().webSearchSource).toBe('Google Search'); // a rate limit is not a refusal
 
     const ok = service(recorder([[{ text: 'OK' }]]));
     await ok.probeWebSearch();
-    expect(ok.capabilities().webSearch).toBe(true);
+    expect(ok.capabilities().webSearchSource).toBe('Google Search');
   });
 });

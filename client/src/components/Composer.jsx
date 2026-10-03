@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, CloseIcon, GlobeIcon, LotusIcon, MicIcon, PaperclipIcon, SendIcon, SparkIcon, StopIcon } from './Icons.jsx';
 import { VOICE_LANGUAGES } from '../hooks/useSpeech.js';
 import ModelPicker from './ModelPicker.jsx';
@@ -37,6 +37,14 @@ export default function Composer({
 }) {
   const ref = useRef(null);
   const fileRef = useRef(null);
+  // A shorter placeholder on phones, so it does not wrap over several lines.
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 640px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const on = (e) => setNarrow(e.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
 
   // Grow with the text (up to a limit).
   useEffect(() => {
@@ -64,7 +72,7 @@ export default function Composer({
           disabled={!picker.capabilities.webSearch}
           onClick={() => onOptions({ ...options, webSearch: !options.webSearch })}
           Icon={GlobeIcon}
-          title={picker.capabilities.webSearch ? "Let the assistant search the web (answers are labelled 'From the web')" : "Web search isn't included in the current Gemini plan, so it is switched off"}
+          title={picker.capabilities.webSearch ? `Let the assistant search the web (${picker.capabilities.webSearchSource ?? 'Wikipedia'}). Results are labelled 'From the web'.` : 'Web search is not available right now'}
         >
           Web search
         </Toggle>
@@ -102,7 +110,7 @@ export default function Composer({
       )}
       {(imageError || speech.error) && <p role="status" className="mb-2 text-xs text-gold-300">{imageError || speech.error}</p>}
 
-      <div className={`flex items-center gap-2 rounded-2xl border bg-ink-900/90 p-2 pl-4 backdrop-blur sm:gap-3 ${speech.listening ? 'border-gold-200 shadow-[0_0_0_3px_rgb(211_169_92/0.25)]' : 'border-gold-500/50'}`}>
+      <div className={`flex items-center gap-2 rounded-2xl border bg-ink-900/75 p-2 pl-4 shadow-[0_10px_40px_-14px_rgba(0,0,0,0.55)] backdrop-blur-xl transition duration-300 focus-within:border-gold-300 focus-within:shadow-[0_0_36px_-4px_rgba(228,185,104,0.4)] sm:gap-3 ${speech.listening ? 'border-gold-200 shadow-[0_0_0_3px_rgb(211_169_92/0.25)]' : 'border-gold-500/60'}`}>
         {/* The lotus logo is the answer-level picker: click it to choose Sutra Lite, Plus or Pro. */}
         <ModelPicker tiers={picker.tiers} value={picker.tier} onChange={picker.setTier} label="Choose answer level (Sutra Lite, Plus or Pro)">
           <LotusIcon className="text-gold-400" width={28} height={28} />
@@ -116,7 +124,7 @@ export default function Composer({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={speech.listening ? 'Listening… speak now' : placeholder}
+          placeholder={speech.listening ? 'Listening… speak now' : narrow ? 'Ask me anything…' : placeholder}
           maxLength={4000}
           aria-label="Message"
           className="min-h-[2.5rem] min-w-0 flex-1 resize-none bg-transparent py-2 text-parchment outline-none placeholder:text-parchment/40"

@@ -87,11 +87,18 @@ Chosen for a **free** key after measuring tool calling, speed and rate limits on
 | **Sutra Plus** | `GEMINI_MODEL_PLUS` | clear, balanced, about 300 words with one example |
 | **Sutra Pro** | `GEMINI_MODEL_PRO` | thorough: idea, steps, worked example, caveats, related concepts |
 
-A level whose model is not set uses the one below it. If a level's model is busy or at its free limit, the answer comes from the next model down and the user is told (for example "Sutra Pro is busy or at its free usage limit right now, so this answer came from Sutra Plus"). With the project's models, a live test of the same question gave 79 words (Lite), 250 words (Plus) and 541 words (Pro), and Pro really did fall back to Plus when Google returned a 503.
+A level whose model is not set uses the one below it. The notice names the level you chose and the one that really answered (for example "Sutra Pro is busy… so this answer came from Sutra Lite"), not each step in between. If a level's model is busy or at its free limit, the answer comes from the next model down and the user is told (for example "Sutra Pro is busy or at its free usage limit right now, so this answer came from Sutra Plus"). With the project's models, a live test of the same question gave 79 words (Lite), 250 words (Plus) and 541 words (Pro), and Pro really did fall back to Plus when Google returned a 503.
 
 Measured on the free tier: `gemini-3.5-flash` and `gemini-3.8-flash` give better answers but allow only about 6 calls per minute, and one question needs 2–3 calls (a tool call, then the answer), so they run dry almost immediately. If you move to a paid plan, set `GEMINI_MODEL=gemini-3.5-flash` (or newer) for the best quality.
 
-When every model is limited, the user sees a message with a live countdown instead of an error. **Web search** (Google Search grounding) is refused on the free key (quota 0, tested on every model). The server checks once at start-up and then every 30 minutes of use; while it is unavailable the toggle is greyed out with an explanation, and a request that still asks for it is answered from the knowledge base with a notice. On a paid plan it switches on by itself. **Deep explain** always gives the thorough answer length, whichever level is chosen.
+When every model is limited, the user sees a message with a live countdown instead of an error. **Web search** works on any plan. Google Search grounding is not included in the free Gemini tier (quota 0, tested on every model on the project key), so the app falls back to its own search tool over **Wikipedia** (English and Hindi, free, no key): the model calls it, reads the intros, labels what it uses "From the web (Wikipedia)" and the page links are shown under the answer. If your plan includes Google Search it is used instead, automatically. The server checks once at start-up which one applies (`GET /api/models` reports it). **Deep explain** always gives the thorough answer length, whichever level is chosen.
+
+## Look and feel
+
+* **Your photo as the background.** `client/public/bg.jpg` (an optimised copy of the temple-at-dusk image) sits behind every page, with slowly drifting light and twinkling stars. Replace that file to change it.
+* **Dark and light mode.** The sun/moon button (top right on every page) switches; the choice is remembered and applied before the page paints. Dark is the default. Every colour is a variable in `client/src/index.css`, so a theme is just one set of values.
+* **Loader.** On a fresh page load a branded loader (turning gold rings round a glowing lotus, rotating phrases) stays for at least about two seconds (`MIN_BOOT_MS` in `context/AuthContext.jsx`) and then fades out.
+* Wider layout (up to 1024px of conversation), glass-style panels, and gentle motion everywhere; all of it switches off for people who ask their device to reduce motion.
 
 ## Features and how they work
 

@@ -150,25 +150,23 @@ describe('gemini: images, web search and deep explain', () => {
     expect(out.sources).toEqual([{ title: 'A', uri: 'https://a.example' }, { title: 'https://b.example', uri: 'https://b.example' }]);
   });
 
-  it('falls back (with a notice) when the model rejects Google Search + tools', async () => {
+  it('switches to the Wikipedia search tool when the model rejects Google Search + tools', async () => {
     const rejected = Object.assign(new Error('Tool use with function calling is unsupported'), { status: 400 });
-    const client = fakeClient([rejected, [{ text: 'answered from the knowledge base' }]]);
-    const notices = [];
-    const out = await run(client, { options: { webSearch: true }, onNotice: (n) => notices.push(n) });
+    const client = fakeClient([rejected, [{ text: 'answered' }]]);
+    const out = await run(client, { options: { webSearch: true } });
     expect(client.requests).toHaveLength(2);
     expect(client.requests[1].config.tools.some((t) => t.googleSearch)).toBe(false);
-    expect(notices[0]).toMatch(/Web search is not available/);
-    expect(out.text).toBe('answered from the knowledge base');
+    const names = client.requests[1].config.tools[0].functionDeclarations.map((d) => d.name);
+    expect(names).toContain('searchWeb'); // web search still works, through Wikipedia
+    expect(out.text).toBe('answered');
   });
 
-  it('also falls back when Google Search is refused by the plan (403 / quota 429 on a free key)', async () => {
+  it('also switches when Google Search is refused by the plan (403 / quota 429 on a free key)', async () => {
     for (const status of [403, 429]) {
-      const client = fakeClient([Object.assign(new Error('plan'), { status }), [{ text: 'from the knowledge base' }]]);
-      const notices = [];
-      const out = await run(client, { options: { webSearch: true }, onNotice: (n) => notices.push(n) });
-      expect(out.text).toBe('from the knowledge base');
-      expect(notices[0]).toMatch(/plan or model/);
-      expect(client.requests[1].config.tools.some((t) => t.googleSearch)).toBe(false);
+      const client = fakeClient([Object.assign(new Error('plan'), { status }), [{ text: 'ok' }]]);
+      const out = await run(client, { options: { webSearch: true } });
+      expect(out.text).toBe('ok');
+      expect(client.requests[1].config.tools[0].functionDeclarations.some((d) => d.name === 'searchWeb')).toBe(true);
     }
   });
 

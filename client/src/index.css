@@ -1,22 +1,44 @@
 @import 'tailwindcss';
 
-/* VedaSutra: dark temple-at-dusk palette with gold accents */
+/* ------------------------------------------------------------------------------------------
+   VedaSutra theme. Every colour in the app is one of these variables, so the light theme is just
+   another set of values (see :root[data-theme='light'] below). Dark is the default.
+   ------------------------------------------------------------------------------------------ */
 @theme {
-  --color-ink-950: #0b0806;
-  --color-ink-900: #120e0b;
-  --color-ink-800: #1a1410;
-  --color-ink-700: #251d16;
-  --color-gold-200: #f1ddb4;
-  --color-gold-300: #e3c487;
-  --color-gold-400: #d3a95c;
-  --color-gold-500: #b98a3e;
-  --color-gold-600: #8f6a2c;
-  --color-parchment: #f6ead6;
+  --color-ink-950: #150f0b; /* page */
+  --color-ink-900: #20170f; /* panels */
+  --color-ink-800: #2c1f15;
+  --color-ink-700: #3b2a1c;
+  --color-gold-200: #fbe9c0;
+  --color-gold-300: #f2d38f;
+  --color-gold-400: #e4b968;
+  --color-gold-500: #cf9f4a;
+  --color-gold-600: #a67b33;
+  --color-parchment: #fdf4e0; /* text */
+  --color-white: #ffffff; /* used for faint tints such as bg-white/5 */
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-serif: 'Cormorant Garamond', 'Noto Serif', Georgia, serif;
   --font-deva: 'Noto Serif Devanagari', serif;
 }
 
+/* Light theme: the same design, lighter. Gold becomes a deeper amber so text stays readable on cream. */
+:root[data-theme='light'] {
+  --color-ink-950: #fdf6e8;
+  --color-ink-900: #fffaf0;
+  --color-ink-800: #fcefd6;
+  --color-ink-700: #f6e2bd;
+  --color-gold-200: #6e420c;
+  --color-gold-300: #9a5a0d;
+  --color-gold-400: #ad6a14;
+  --color-gold-500: #c4842a;
+  --color-gold-600: #dba44f;
+  --color-parchment: #2d1b0c;
+  --color-white: #5a3510;
+  color-scheme: light;
+}
+:root { color-scheme: dark; }
+
+html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background: var(--color-ink-950);
@@ -25,25 +47,88 @@ body {
   line-height: 1.6;
 }
 
+/* Smooth colour change when switching theme */
+html.theme-switching, html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after {
+  transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease, fill 0.5s ease !important;
+}
+
 /* Thin gold scrollbars */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(185 138 62 / 0.4) transparent;
+* { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--color-gold-500) 45%, transparent) transparent; }
+
+/* ------------------------------------------------------------------------------------------
+   Backdrop: your photo, then a tint for the current theme, then slowly moving light and stars.
+   ------------------------------------------------------------------------------------------ */
+.backdrop { position: fixed; inset: 0; z-index: -10; overflow: hidden; pointer-events: none; background: var(--color-ink-950); }
+.backdrop .photo {
+  position: absolute; inset: -2%;
+  background: url('/bg.jpg') center / cover no-repeat;
+  filter: brightness(1.28) saturate(1.2) contrast(1.02);
+  animation: kenburns 60s ease-in-out infinite alternate;
+}
+.backdrop .tint { position: absolute; inset: 0; background: linear-gradient(180deg, rgb(18 10 4 / 0.1) 0%, rgb(18 10 4 / 0.34) 100%); }
+.backdrop .glow-orb { position: absolute; border-radius: 9999px; filter: blur(70px); opacity: 0.5; mix-blend-mode: screen; }
+.backdrop .orb-a { width: 46vw; height: 46vw; left: -12vw; top: 8vh; background: radial-gradient(circle, rgb(228 150 60 / 0.55), transparent 65%); animation: orb 26s ease-in-out infinite alternate; }
+.backdrop .orb-b { width: 40vw; height: 40vw; right: -8vw; top: -10vh; background: radial-gradient(circle, rgb(90 150 190 / 0.4), transparent 65%); animation: orb 32s ease-in-out infinite alternate-reverse; }
+.backdrop .orb-c { width: 36vw; height: 36vw; right: 12vw; bottom: -14vh; background: radial-gradient(circle, rgb(255 190 90 / 0.4), transparent 65%); animation: orb 38s ease-in-out infinite alternate; }
+.backdrop .star { position: absolute; border-radius: 9999px; background: #fff3d1; animation: twinkle 4s ease-in-out infinite; }
+
+:root[data-theme='light'] .backdrop .photo { filter: brightness(1.55) saturate(0.9); }
+:root[data-theme='light'] .backdrop .tint { background: linear-gradient(180deg, rgb(255 249 236 / 0.58) 0%, rgb(253 242 220 / 0.76) 100%); }
+:root[data-theme='light'] .backdrop .glow-orb { mix-blend-mode: multiply; opacity: 0.32; }
+:root[data-theme='light'] .backdrop .orb-b { background: radial-gradient(circle, rgb(255 190 130 / 0.6), transparent 65%); }
+:root[data-theme='light'] .backdrop .star { display: none; }
+
+@keyframes kenburns { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.06) translate(-1%, -1%); } }
+@keyframes orb { from { transform: translate(0, 0) scale(1); } to { transform: translate(6vw, 5vh) scale(1.15); } }
+@keyframes twinkle { 0%, 100% { opacity: 0.15; transform: scale(0.8); } 50% { opacity: 0.95; transform: scale(1.25); } }
+
+/* ------------------------------------------------------------------------------------------
+   Motion helpers
+   ------------------------------------------------------------------------------------------ */
+@keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes shimmer { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes glow-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-gold-400) 0%, transparent); } 50% { box-shadow: 0 0 28px 2px color-mix(in oklab, var(--color-gold-400) 45%, transparent); } }
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+
+.fade-up { animation: fade-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.pop-in { animation: pop-in 0.4s ease both; }
+.float { animation: float 6s ease-in-out infinite; }
+.glow-pulse { animation: glow-pulse 3.2s ease-in-out infinite; }
+.spin-slow { animation: spin-slow 40s linear infinite; }
+/* Gradient text that slowly shimmers */
+.shimmer-text {
+  background: linear-gradient(100deg, var(--color-gold-200) 0%, var(--color-gold-400) 25%, var(--color-gold-200) 50%, var(--color-gold-400) 75%, var(--color-gold-200) 100%);
+  background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 7s linear infinite;
 }
 
-/* Hero backdrop: dusk glow behind the mandala. Drop a photo at client/public/hero-bg.jpg to overlay it. */
-.hero-bg {
-  background:
-    linear-gradient(to bottom, rgb(11 8 6 / 0.15), rgb(11 8 6 / 0.85) 78%),
-    url('/hero-bg.jpg') center / cover no-repeat,
-    radial-gradient(ellipse 55% 40% at 62% 48%, rgb(232 131 12 / 0.38), transparent 70%),
-    radial-gradient(ellipse 90% 60% at 60% 55%, rgb(120 60 20 / 0.35), transparent 75%),
-    var(--color-ink-950);
+/* Fade-up when a section scrolls into view (home page) */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.8s ease, transform 0.8s ease; }
+.reveal.in { opacity: 1; transform: none; }
+.drift { animation: float 12s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .backdrop .photo, .backdrop .glow-orb, .backdrop .star, .fade-up, .pop-in, .float, .glow-pulse, .spin-slow, .shimmer-text, .drift { animation: none !important; }
+  .reveal { opacity: 1; transform: none; transition: none; }
 }
 
-/* Markdown rendered inside assistant messages */
+/* ------------------------------------------------------------------------------------------
+   Light theme fixes for a few fixed-colour utilities (errors, labels)
+   ------------------------------------------------------------------------------------------ */
+:root[data-theme='light'] .text-red-200, :root[data-theme='light'] .text-red-300, :root[data-theme='light'] .text-red-400 { color: #9b1c1c; }
+:root[data-theme='light'] .bg-red-950\/50, :root[data-theme='light'] .bg-red-950\/60, :root[data-theme='light'] .bg-red-950\/70 { background-color: #fde8e8; }
+:root[data-theme='light'] .text-emerald-200 { color: #166534; }
+:root[data-theme='light'] .text-sky-200 { color: #075985; }
+
+/* ------------------------------------------------------------------------------------------
+   Markdown inside assistant messages
+   ------------------------------------------------------------------------------------------ */
 .md { overflow-wrap: anywhere; }
 .md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
 .md p { margin: 0.6em 0; }
 .md h1, .md h2, .md h3, .md h4 { font-family: var(--font-serif); color: var(--color-gold-200); font-weight: 700; line-height: 1.25; margin: 1.1em 0 0.4em; }
 .md h1 { font-size: 1.6rem; } .md h2 { font-size: 1.35rem; } .md h3 { font-size: 1.15rem; }
@@ -53,23 +138,11 @@ body {
 .md li::marker { color: var(--color-gold-400); }
 .md strong { color: var(--color-gold-200); }
 .md a { color: var(--color-gold-300); text-decoration: underline; text-underline-offset: 2px; }
-.md blockquote { margin: 0.8em 0; padding: 0.2em 1em; border-left: 3px solid var(--color-gold-500); color: rgb(246 234 214 / 0.8); }
+.md blockquote { margin: 0.8em 0; padding: 0.2em 1em; border-left: 3px solid var(--color-gold-500); color: color-mix(in oklab, var(--color-parchment) 80%, transparent); }
 .md code { background: var(--color-ink-700); border-radius: 4px; padding: 0.1em 0.35em; font-size: 0.9em; }
-.md pre { background: var(--color-ink-800); border: 1px solid rgb(255 255 255 / 0.08); border-radius: 10px; padding: 0.8em 1em; overflow-x: auto; margin: 0.8em 0; }
+.md pre { background: var(--color-ink-800); border: 1px solid color-mix(in oklab, var(--color-white) 10%, transparent); border-radius: 10px; padding: 0.8em 1em; overflow-x: auto; margin: 0.8em 0; }
 .md pre code { background: none; padding: 0; }
 .md table { display: block; overflow-x: auto; border-collapse: collapse; margin: 0.8em 0; }
-.md th, .md td { border: 1px solid rgb(211 169 92 / 0.3); padding: 0.4em 0.7em; text-align: left; }
-.md th { background: rgb(211 169 92 / 0.12); }
-.md hr { border: 0; border-top: 1px solid rgb(255 255 255 / 0.12); margin: 1.2em 0; }
-
-/* Gentle fade-up when a section scrolls into view (home page). Respects "reduce motion". */
-.reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s ease, transform 0.7s ease; }
-.reveal.in { opacity: 1; transform: none; }
-@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
-
-/* Slow drift for the home page backdrop */
-@keyframes drift { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(-14px) rotate(6deg); } }
-.drift { animation: drift 9s ease-in-out infinite alternate; }
-@media (prefers-reduced-motion: reduce) { .drift { animation: none; } }
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+.md th, .md td { border: 1px solid color-mix(in oklab, var(--color-gold-400) 35%, transparent); padding: 0.4em 0.7em; text-align: left; }
+.md th { background: color-mix(in oklab, var(--color-gold-400) 14%, transparent); }
+.md hr { border: 0; border-top: 1px solid color-mix(in oklab, var(--color-white) 14%, transparent); margin: 1.2em 0; }

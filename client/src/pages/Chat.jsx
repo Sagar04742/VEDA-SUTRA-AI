@@ -11,6 +11,7 @@ import Sidebar, { TOPICS } from '../components/Sidebar.jsx';
 import Composer from '../components/Composer.jsx';
 import MessageBubble from '../components/MessageBubble.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
+import ThemeToggle from '../components/ThemeToggle.jsx';
 import { HeroBackdrop, Ornament } from '../components/Hero.jsx';
 import { ArrowRight, CloseIcon, GlobeIcon, MenuIcon } from '../components/Icons.jsx';
 
@@ -84,7 +85,8 @@ export default function Chat() {
   };
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && stick.current) el.scrollTo({ top: el.scrollHeight });
+    // Only follow the conversation; the empty greeting screen must start at the top (it is taller than a phone screen).
+    if (el && stick.current && messages.length) el.scrollTo({ top: el.scrollHeight });
   }, [messages, error]);
 
   // After an answer that used Web search, ask the server again whether it is available (it may have just found out it is not).
@@ -181,26 +183,30 @@ export default function Chat() {
         {empty && <HeroBackdrop />}
 
         {/* Menu button: always on phones; on larger screens only after the sidebar was closed. */}
-        <div className={`relative z-20 p-3 ${collapsed ? '' : 'md:hidden'}`}>
-          <button onClick={openSidebar} aria-label="Open sidebar" title="Open sidebar" className="rounded-lg border border-white/10 bg-ink-900/70 p-2 text-gold-300 hover:border-gold-500/50">
-            <MenuIcon />
-          </button>
+        <div className="relative z-20 flex items-center gap-3 p-3">
+          <div className={collapsed ? '' : 'md:hidden'}>
+            <button onClick={openSidebar} aria-label="Open sidebar" title="Open sidebar" className="rounded-lg border border-gold-500/30 bg-ink-900/70 p-2 text-gold-300 backdrop-blur hover:border-gold-400">
+              <MenuIcon />
+            </button>
+          </div>
+          <ThemeToggle className="ml-auto" />
         </div>
 
         <div ref={scrollRef} onScroll={onScroll} className={`relative z-10 flex flex-1 flex-col overflow-y-auto px-4 ${empty ? 'items-center text-center' : ''}`}>
           {empty ? (
             <div className="mt-auto flex w-full flex-col items-center pb-4">
-              <h1 className="font-serif text-4xl font-semibold text-parchment sm:text-6xl">Namaste, {firstName}</h1>
-              <p className="mt-2 font-serif text-2xl text-parchment/90">How can I help you today?</p>
+              <h1 className="fade-up font-serif text-4xl font-semibold text-parchment drop-shadow-lg sm:text-6xl">Namaste, <span className="shimmer-text">{firstName}</span></h1>
+              <p className="fade-up mt-2 font-serif text-2xl text-parchment/90 drop-shadow" style={{ animationDelay: '120ms' }}>How can I help you today?</p>
               <Ornament />
 
-              <div className="mb-4 mt-2 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
-                {CARDS.map(({ id, title, Icon, blurb }) => (
+              <div className="mb-4 mt-2 grid w-full max-w-5xl gap-5 sm:grid-cols-2">
+                {CARDS.map(({ id, title, Icon, blurb }, n) => (
                   <button
                     key={id}
                     onClick={() => fillTopic(id)}
                     title="Click again for a different question"
-                    className="group relative flex items-start gap-4 rounded-2xl border border-gold-500/40 bg-ink-900/70 p-5 text-left backdrop-blur transition hover:border-gold-300/70 hover:bg-ink-800/80"
+                    style={{ animationDelay: `${240 + n * 120}ms` }}
+                    className="fade-up group relative flex items-start gap-4 rounded-2xl border border-gold-500/50 bg-ink-900/60 p-6 text-left shadow-lg shadow-black/10 backdrop-blur-md transition duration-300 hover:-translate-y-1 hover:border-gold-300 hover:bg-ink-800/75 hover:shadow-[0_14px_44px_-12px_rgba(228,185,104,0.5)]"
                   >
                     <Icon className="mt-1 shrink-0 text-gold-300" width={38} height={38} />
                     <span className="flex-1">
@@ -214,21 +220,21 @@ export default function Chat() {
                 ))}
               </div>
 
-              <div className="mb-4 flex max-w-3xl flex-wrap justify-center gap-2">
+              <div className="fade-up mb-4 flex max-w-4xl flex-wrap justify-center gap-2" style={{ animationDelay: '480ms' }}>
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
                     onClick={() => send(s)}
-                    className="rounded-full border border-gold-500/40 bg-ink-900/70 px-4 py-1.5 text-sm text-gold-200 backdrop-blur transition hover:border-gold-300 hover:bg-gold-500/15"
+                    className="rounded-full border border-gold-500/50 bg-ink-900/60 px-4 py-1.5 text-sm text-gold-200 shadow backdrop-blur-md transition hover:-translate-y-0.5 hover:border-gold-300 hover:bg-gold-500/20"
                   >
                     {s}
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-parchment/50">Ask in English, हिन्दी, or your own language. Attach a photo of a problem, or tap the microphone to speak.</p>
+              <p className="fade-up text-xs text-parchment/70 drop-shadow" style={{ animationDelay: '560ms' }}>Ask in English, हिन्दी, or your own language. Attach a photo of a problem, or tap the microphone to speak.</p>
             </div>
           ) : (
-            <div className="mx-auto w-full max-w-3xl space-y-6 py-6" aria-live="polite">
+            <div className="mx-auto w-full max-w-5xl space-y-6 py-6" aria-live="polite">
               {loading && <p className="text-center text-parchment/50">Loading conversation…</p>}
               {messages.map((m) => <MessageBubble key={m.id} message={m} chatId={chatIdRef.current} />)}
             </div>
@@ -236,7 +242,7 @@ export default function Chat() {
         </div>
 
         <div className="relative z-10 px-4 pb-4">
-          <div className="mx-auto w-full max-w-4xl">
+          <div className="mx-auto w-full max-w-5xl">
             {notice && (
               <div role="status" className="mb-2 flex items-start gap-3 rounded-xl border border-white/10 bg-ink-900/80 px-4 py-2 text-sm text-parchment/80">
                 <GlobeIcon className="mt-0.5 shrink-0 text-gold-400" width={16} height={16} />
@@ -263,7 +269,7 @@ export default function Chat() {
               onVoiceLang={changeVoiceLang}
               picker={picker}
             />
-            <p className="mt-2 text-center text-xs text-parchment/40">VedaSutra can make mistakes. Check important information.</p>
+            <p className="mt-2 text-center text-xs text-parchment/60">VedaSutra can make mistakes. Check important information.</p>
           </div>
         </div>
       </main>

@@ -74,7 +74,7 @@ export default function MessageBubble({ message, chatId }) {
       <div className="flex flex-col items-end">
         <Pictures images={message.images} chatId={chatId} />
         {message.content && (
-          <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-gold-500/30 bg-gold-600/25 px-4 py-2.5 sm:max-w-[75%]">
+          <div className="pop-in max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-gold-400/60 bg-gradient-to-br from-gold-400/45 to-gold-600/30 px-4 py-2.5 shadow-lg shadow-black/10 backdrop-blur-md sm:max-w-[75%]">
             {message.content}
           </div>
         )}
@@ -84,11 +84,11 @@ export default function MessageBubble({ message, chatId }) {
 
   const waiting = message.streaming && !message.content && !message.solver?.length;
   return (
-    <div className="flex gap-3">
-      <span className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-gold-500/40 bg-ink-800 text-gold-300">
-        <LotusIcon width={18} height={18} />
+    <div className="pop-in flex gap-3">
+      <span className={`mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full border border-gold-400/60 bg-gradient-to-br from-ink-800 to-ink-900 text-gold-300 shadow-lg ${message.streaming ? 'glow-pulse' : ''}`}>
+        <LotusIcon width={22} height={22} />
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-gold-500/35 bg-ink-900/70 px-5 py-4 shadow-lg shadow-black/10 backdrop-blur-md">
         {waiting && <TypingIndicator />}
         {message.solver?.map((r, i) => <StepViewer key={i} result={r} />)}
         {message.content && (

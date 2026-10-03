@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { profileApi } from '../api/profile.js';
 import { HeroBackdrop } from '../components/Hero.jsx';
+import ThemeToggle from '../components/ThemeToggle.jsx';
 import { ArrowRight, GlobeIcon, LotusIcon, MicIcon, PaperclipIcon, RootIcon, SparkIcon, TempleIcon, CheckIcon } from '../components/Icons.jsx';
 
 // Fades a section in as it scrolls into view.
@@ -24,7 +25,7 @@ function Reveal({ children, className = '', delay = 0 }) {
 }
 
 const Section = ({ id, eyebrow, title, children, className = '' }) => (
-  <section id={id} className={`mx-auto w-full max-w-6xl px-5 py-16 sm:py-20 ${className}`}>
+  <section id={id} className={`mx-auto w-full max-w-7xl px-5 py-16 sm:py-20 ${className}`}>
     <Reveal>
       {eyebrow && <p className="text-sm uppercase tracking-[0.25em] text-gold-400">{eyebrow}</p>}
       <h2 className="mt-2 max-w-3xl font-serif text-3xl font-semibold text-parchment sm:text-5xl">{title}</h2>
@@ -73,10 +74,10 @@ export default function Landing() {
   );
 
   return (
-    <div className="min-h-dvh bg-ink-950 text-parchment">
+    <div className="min-h-dvh text-parchment">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 border-b border-white/5 bg-ink-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-3">
+      <header className="sticky top-0 z-30 border-b border-gold-500/15 bg-ink-950/55 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center gap-4 px-5 py-3">
           <Link to="/" className="flex items-center gap-2 font-serif text-2xl text-gold-200">
             <LotusIcon className="text-gold-300" width={30} height={30} strokeWidth={1.3} /> VedaSutra
           </Link>
@@ -87,6 +88,7 @@ export default function Landing() {
             <a href="#honesty" className="hover:text-gold-300">Honesty</a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle className="h-9 w-9" />
             {!loading && user ? (
               <>
                 <Link to="/profile" className="hidden items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 text-sm hover:border-gold-500/50 sm:flex">
@@ -110,11 +112,11 @@ export default function Landing() {
       {/* Hero */}
       <div className="relative overflow-hidden">
         <HeroBackdrop />
-        <div className="relative mx-auto flex min-h-[78vh] max-w-6xl flex-col items-center justify-center px-5 py-20 text-center">
-          <p className="mb-5 rounded-full border border-gold-500/40 bg-ink-900/60 px-4 py-1 text-sm text-gold-200 backdrop-blur">Vedic mathematics · Ancient Indian science</p>
+        <div className="relative mx-auto flex min-h-[78vh] max-w-7xl flex-col items-center justify-center px-5 py-20 text-center">
+          <p className="fade-up mb-5 rounded-full border border-gold-500/50 bg-ink-900/55 px-4 py-1 text-sm text-gold-200 backdrop-blur">Vedic mathematics · Ancient Indian science</p>
           <h1 className="max-w-4xl font-serif text-5xl font-semibold leading-tight text-parchment sm:text-7xl">
             Ancient knowledge.
-            <span className="block bg-gradient-to-r from-gold-200 via-gold-400 to-gold-200 bg-clip-text text-transparent">Modern answers.</span>
+            <span className="shimmer-text block">Modern answers.</span>
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-parchment/80 sm:text-xl">
             VedaSutra is an AI guide that solves problems with Vedic techniques step by step, and answers questions about ancient Indian science from a library of sourced entries, telling you how sure each source is.
@@ -133,7 +135,7 @@ export default function Landing() {
               ['12', 'exact Vedic techniques'],
               ['10', 'voice languages'],
             ].map(([value, label]) => (
-              <div key={label} className="rounded-2xl border border-gold-500/25 bg-ink-900/60 px-3 py-4 backdrop-blur">
+              <div key={label} className="rounded-2xl border border-gold-500/30 bg-ink-900/55 px-3 py-4 shadow-lg shadow-black/10 backdrop-blur-md transition hover:-translate-y-1 hover:border-gold-300/70">
                 <dt className="sr-only">{label}</dt>
                 <dd className="font-serif text-4xl font-semibold text-gold-200">{value}</dd>
                 <dd className="mt-1 text-xs text-parchment/60">{label}</dd>
@@ -245,7 +247,7 @@ export default function Landing() {
       </Section>
 
       {/* Closing call to action */}
-      <section className="relative overflow-hidden border-t border-gold-500/20 bg-gradient-to-b from-ink-950 to-ink-900">
+      <section className="relative overflow-hidden border-t border-gold-500/20 bg-gradient-to-b from-ink-950/30 to-ink-900/70 backdrop-blur-sm">
         <div className="drift pointer-events-none absolute -right-10 -top-10 select-none font-serif text-[16rem] leading-none text-gold-500/5" aria-hidden>ॐ</div>
         <Reveal className="relative mx-auto max-w-3xl px-5 py-20 text-center">
           <h2 className="font-serif text-4xl font-semibold sm:text-5xl">Ready to begin gaining knowledge?</h2>
@@ -254,7 +256,7 @@ export default function Landing() {
         </Reveal>
       </section>
 
-      <footer className="border-t border-white/5 px-5 py-8 text-center text-sm text-parchment/40">
+      <footer className="border-t border-white/10 bg-ink-950/40 px-5 py-8 text-center text-sm text-parchment/60 backdrop-blur">
         <p>VedaSutra is for education. It can make mistakes, so please check important information. It is not medical advice.</p>
       </footer>
     </div>

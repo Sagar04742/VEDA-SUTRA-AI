@@ -1,4 +1,5 @@
 import { searchKnowledge } from './rag.js';
+import { searchWeb } from './webSearch.js';
 import * as solver from './solver/index.js';
 
 // Tools exposed to Gemini through function calling.
@@ -101,10 +102,32 @@ export const toolDeclarations = [
   SEARCH_TOOL,
 ];
 
+// Offered to the model only when the user switched on "Web search" (and Google Search is not available).
+export const webSearchDeclaration = {
+  name: 'searchWeb',
+  description:
+    'Search Wikipedia for information that is NOT in the knowledge base (recent research, modern context, topics the knowledge base lacks). Check searchKnowledge first. Write the query in English (or Hindi with lang "hi"). Results include page titles and links; label anything you use as "From the web (Wikipedia)".',
+  parametersJsonSchema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Standalone search query naming the topic explicitly.' },
+      lang: { type: 'string', enum: ['en', 'hi'], description: 'Wikipedia language. Default en.' },
+    },
+    required: ['query'],
+  },
+};
+
 export const isSolverTool = (name) => name in SOLVER_TOOLS;
 
 // ctx.previousUserMessages: earlier user messages in this chat (oldest first), used as a retrieval fallback.
 export async function executeTool(name, args = {}, ctx = {}) {
+  if (name === 'searchWeb') {
+    const found = await searchWeb(args.query, { lang: args.lang, fetchImpl: ctx.fetchImpl });
+    return found.results.length
+      ? found
+      : { ...found, note: found.error ?? 'Nothing relevant was found on the web. Say so honestly; do not guess.' };
+  }
+
   if (name === 'searchKnowledge') {
     let results = await searchKnowledge(args.query, { category: args.category });
     // Fallback: if the model's query found nothing, add the previous user topic so follow-ups still resolve.

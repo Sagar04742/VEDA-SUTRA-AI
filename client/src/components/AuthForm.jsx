@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Loader from './Loader.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { errorMessage } from '../api/client.js';
 import Brand from './Brand.jsx';
@@ -42,7 +43,8 @@ export default function AuthForm({ mode }) {
   return (
     <main className="relative grid min-h-dvh place-items-center px-4 py-8">
       <HeroBackdrop />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-gold-500/40 bg-ink-900/85 p-6 shadow-2xl backdrop-blur sm:p-8">
+      <ThemeToggle className="absolute right-4 top-4 z-20" />
+      <div className="fade-up relative z-10 w-full max-w-md rounded-2xl border border-gold-500/50 bg-ink-900/75 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
         <Link to="/" aria-label="Back to the VedaSutra home page" className="block rounded-xl transition hover:opacity-90">
           <Brand size="lg" />
         </Link>
