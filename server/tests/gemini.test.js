@@ -143,10 +143,10 @@ describe('gemini configuration and errors', () => {
   });
 
   it('maps API errors to safe messages', () => {
-    expect(describeAiError({ status: 429 })).toMatch(/quota|busy/i);
-    expect(describeAiError({ status: 403 })).toMatch(/API key/);
-    expect(describeAiError({ status: 404 })).toMatch(/GEMINI_MODEL/);
-    expect(describeAiError(new Error('internal stack details'))).not.toMatch(/internal/);
+    expect(describeAiError({ status: 429 }).message).toMatch(/limit|busy/i);
+    expect(describeAiError({ status: 403 }).message).toMatch(/API key/);
+    expect(describeAiError({ status: 404 }).message).toMatch(/GEMINI_MODEL/);
+    expect(describeAiError(new Error('internal stack details')).message).not.toMatch(/internal/);
   });
 });
 

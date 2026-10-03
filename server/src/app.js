@@ -25,6 +25,8 @@ export function createApp(deps = {}) {
     })
   );
   app.use(cors({ origin: env.clientUrl, credentials: true }));
+  // Messages may carry up to 3 compressed pictures (base64); everything else stays small.
+  app.use('/api/chats/:id/messages', express.json({ limit: '10mb' }));
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
 

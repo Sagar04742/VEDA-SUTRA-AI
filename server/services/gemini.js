@@ -1,20 +1,35 @@
 import { GoogleGenAI } from '@google/genai';
-import { SYSTEM_PROMPT } from './prompt.js';
+import { buildSystemPrompt } from './prompt.js';
 import { executeTool, isSolverTool, toolDeclarations } from './tools.js';
+import { humanDuration, parseQuotaError } from '../utils/quota.js';
 
 const MAX_TOOL_ROUNDS = 5;
+const DEEP_TOOL_ROUNDS = 8;
 
-// Turn our {role, content} messages into Gemini "contents".
+// Turn our turns into Gemini "contents". Pictures go first, then the text.
 const toContents = (messages) =>
-  messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+  messages.map((m) => {
+    const parts = (m.images ?? []).map((i) => ({ inlineData: { mimeType: i.mimeType, data: i.data } }));
+    if (m.content) parts.push({ text: m.content });
+    return { role: m.role === 'assistant' ? 'model' : 'user', parts };
+  });
 
-// Friendly, non-leaky message for errors coming from the Gemini API.
+// Friendly, non-leaky error info for the user: { message, code, retryAfterSeconds }.
 export function describeAiError(err) {
+  const quota = parseQuotaError(err);
+  if (quota.rateLimited) {
+    const wait = quota.retryAfterSeconds;
+    const message = quota.daily
+      ? 'The free daily limit for the AI service has been reached. Please try again later; daily limits usually reset within 24 hours.'
+      : wait
+        ? `The free usage limit was reached. Please try again in ${humanDuration(wait)}.`
+        : 'The AI service is busy or over its free usage limit. Please try again in a minute or two.';
+    return { message, code: 'rate_limit', retryAfterSeconds: quota.daily ? null : wait ?? 60, daily: quota.daily };
+  }
   const status = err?.status ?? err?.code;
-  if (status === 429) return 'The AI service is busy or over its quota. Please try again in a moment.';
-  if (status === 401 || status === 403) return 'The AI service rejected the API key. Check GEMINI_API_KEY on the server.';
-  if (status === 404) return 'The AI model was not found. Check GEMINI_MODEL on the server.';
-  return 'The AI service could not complete the answer. Please try again.';
+  if (status === 401 || status === 403) return { message: 'The AI service rejected the API key. Check GEMINI_API_KEY on the server.', code: 'auth' };
+  if (status === 404) return { message: 'The AI model was not found. Check GEMINI_MODEL on the server.', code: 'model' };
+  return { message: 'The AI service could not complete the answer. Please try again.', code: 'ai_error' };
 }
 
 // client is injectable so tests (and the dev mock) can stand in for the real SDK.
@@ -32,71 +47,90 @@ export function createGeminiService({ apiKey, model, client } = {}) {
 
     // Streams an answer. messages = full conversation (already trimmed, ending with the new user turn).
     // Handles tool calls in a loop: model -> tool -> model, streaming text tokens the whole way.
-    // Returns { text, solver, aborted }.
-    async streamChat({ messages, signal, onToken = () => {}, onSolver = () => {}, toolContext = {} }) {
+    // options: { webSearch, deepExplain }. Returns { text, solver, sources, aborted }.
+    async streamChat({ messages, signal, options = {}, onToken = () => {}, onSolver = () => {}, onNotice = () => {}, toolContext = {} }) {
       const contents = toContents(messages);
+      const systemInstruction = buildSystemPrompt(options);
+      const maxRounds = options.deepExplain ? DEEP_TOOL_ROUNDS : MAX_TOOL_ROUNDS;
       const solver = [];
+      const sources = new Map();
+      let useSearch = Boolean(options.webSearch);
       let text = '';
+      const result = (aborted) => ({ text, solver, sources: [...sources.values()], aborted });
 
-      for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      for (let round = 0; round <= maxRounds; round++) {
         // On the last allowed round, withhold the tools so the model must answer in text.
-        const useTools = round < MAX_TOOL_ROUNDS;
-        const modelParts = [];
-        const calls = [];
-        let roundHasText = false;
+        const useTools = round < maxRounds;
+        let modelParts;
+        let calls;
+        let roundHasText;
 
-        try {
-          const stream = await getClient().models.generateContentStream({
-            model,
-            contents,
-            config: {
-              systemInstruction: SYSTEM_PROMPT,
-              ...(useTools ? { tools: [{ functionDeclarations: toolDeclarations }] } : {}),
-              abortSignal: signal,
-            },
-          });
+        // One attempt per loop; if Google Search is rejected by this model we retry once without it.
+        for (;;) {
+          modelParts = [];
+          calls = [];
+          roundHasText = false;
+          const tools = useTools ? [{ functionDeclarations: toolDeclarations }, ...(useSearch ? [{ googleSearch: {} }] : [])] : [];
+          try {
+            const stream = await getClient().models.generateContentStream({
+              model,
+              contents,
+              config: { systemInstruction, ...(tools.length ? { tools } : {}), abortSignal: signal },
+            });
 
-          for await (const chunk of stream) {
-            if (signal?.aborted) break;
-            for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
-              modelParts.push(part);
-              if (part.functionCall) calls.push(part.functionCall);
-              else if (part.text && !part.thought) {
-                // Separate text from different rounds (e.g. a preamble before a tool call).
-                if (!roundHasText && text && !text.endsWith('\n')) {
-                  text += '\n\n';
-                  onToken('\n\n');
+            for await (const chunk of stream) {
+              if (signal?.aborted) break;
+              const candidate = chunk.candidates?.[0];
+              for (const c of candidate?.groundingMetadata?.groundingChunks ?? []) {
+                if (c.web?.uri && !sources.has(c.web.uri)) sources.set(c.web.uri, { title: c.web.title || c.web.uri, uri: c.web.uri });
+              }
+              for (const part of candidate?.content?.parts ?? []) {
+                modelParts.push(part);
+                if (part.functionCall) calls.push(part.functionCall);
+                else if (part.text && !part.thought) {
+                  // Separate text from different rounds (e.g. a preamble before a tool call).
+                  if (!roundHasText && text && !text.endsWith('\n')) {
+                    text += '\n\n';
+                    onToken('\n\n');
+                  }
+                  roundHasText = true;
+                  text += part.text;
+                  onToken(part.text);
                 }
-                roundHasText = true;
-                text += part.text;
-                onToken(part.text);
               }
             }
+            break;
+          } catch (err) {
+            if (signal?.aborted) return result(true); // keep the partial answer
+            // Some models cannot combine Google Search with our tools: carry on without it, and say so.
+            if (useSearch && useTools && !roundHasText && (err?.status ?? err?.code) === 400) {
+              useSearch = false;
+              onNotice('Web search is not available with the current AI model, so this answer uses the knowledge base only.');
+              continue;
+            }
+            throw err;
           }
-        } catch (err) {
-          if (signal?.aborted) return { text, solver, aborted: true }; // keep the partial answer
-          throw err;
         }
 
-        if (signal?.aborted) return { text, solver, aborted: true };
-        if (calls.length === 0 || !useTools) return { text, solver, aborted: false };
+        if (signal?.aborted) return result(true);
+        if (calls.length === 0 || !useTools) return result(false);
 
         // Run every requested tool, then give the results back to the model.
         contents.push({ role: 'model', parts: modelParts });
         const responses = [];
         for (const call of calls) {
-          const result = await executeTool(call.name, call.args ?? {}, toolContext);
-          if (isSolverTool(call.name) && !result.error) {
-            const entry = { tool: call.name, args: call.args ?? {}, method: result.method, answer: result.answer, steps: result.steps };
+          const out = await executeTool(call.name, call.args ?? {}, toolContext);
+          if (isSolverTool(call.name) && !out.error) {
+            const entry = { tool: call.name, args: call.args ?? {}, method: out.method, answer: out.answer, steps: out.steps };
             solver.push(entry);
             onSolver(entry);
           }
-          responses.push({ functionResponse: { name: call.name, ...(call.id ? { id: call.id } : {}), response: result } });
+          responses.push({ functionResponse: { name: call.name, ...(call.id ? { id: call.id } : {}), response: out } });
         }
         contents.push({ role: 'user', parts: responses });
       }
 
-      return { text, solver, aborted: false };
+      return result(false);
     },
   };
 }

@@ -9,7 +9,14 @@ const solverSchema = new mongoose.Schema(
 const messageSchema = new mongoose.Schema({
   role: { type: String, enum: ['user', 'assistant'], required: true },
   content: { type: String, default: '' },
+  // Pictures the user attached (the bytes live in the Image collection).
+  images: {
+    type: [new mongoose.Schema({ imageId: mongoose.Schema.Types.ObjectId, mimeType: String }, { _id: false })],
+    default: undefined,
+  },
   solver: { type: [solverSchema], default: undefined },
+  // Web pages used when "Web search" was on.
+  sources: { type: [new mongoose.Schema({ title: String, uri: String }, { _id: false })], default: undefined },
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -25,4 +32,5 @@ const chatSchema = new mongoose.Schema(
 chatSchema.index({ userId: 1, updatedAt: -1 });
 
 export const DEFAULT_TITLE = 'New chat';
+export const MAX_MESSAGES_PER_CHAT = 400;
 export default mongoose.model('Chat', chatSchema);

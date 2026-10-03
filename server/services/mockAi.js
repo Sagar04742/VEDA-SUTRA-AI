@@ -60,17 +60,33 @@ export function createMockGeminiClient({ delayMs = 6 } = {}) {
 
         return (async function* () {
           if (signal?.aborted) throw abortError();
+          const images = last.parts.filter((p) => p.inlineData).length;
           if (responses.length === 0) {
-            const call = planCall(textOf(last), contents);
-            yield { candidates: [{ content: { parts: [{ functionCall: call }] } }] };
+            const userText = textOf(last);
+            const note = images ? `_(Mock model: I can see ${images} attached image${images > 1 ? 's' : ''}, but a real model is needed to read them.)_` : '';
+            if (images && !userText) {
+              yield { candidates: [{ content: { parts: [{ text: note }] } }] };
+              return;
+            }
+            if (note) yield { candidates: [{ content: { parts: [{ text: note }] } }] };
+            yield { candidates: [{ content: { parts: [{ functionCall: planCall(userText, contents) }] } }] };
             return;
           }
           // Stream the composed answer a few characters at a time.
           const text = compose(responses);
+          const searching = config?.tools?.some((t) => t.googleSearch);
           for (let i = 0; i < text.length; i += 10) {
             if (signal?.aborted) throw abortError();
             await sleep(delayMs);
-            yield { candidates: [{ content: { parts: [{ text: text.slice(i, i + 10) }] } }] };
+            yield {
+              candidates: [
+                {
+                  content: { parts: [{ text: text.slice(i, i + 10) }] },
+                  // With Web search on, pretend Google Search grounded the answer.
+                  ...(searching && i === 0 ? { groundingMetadata: { groundingChunks: [{ web: { uri: 'https://example.com/mock-source', title: 'Example web source (mock)' } }] } } : {}),
+                },
+              ],
+            };
           }
         })();
       },

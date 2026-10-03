@@ -68,7 +68,7 @@ function isHeading(line, prev) {
 export function sectionise(lines, fallbackHeading) {
   const rows = lines.filter((l) => l.text);
   const sections = [];
-  let cur = { heading: fallbackHeading, parts: [], page: rows[0]?.page ?? 1 };
+  let cur = { heading: fallbackHeading, parts: [], page: rows[0]?.page ?? null };
   for (let i = 0; i < rows.length; i++) {
     const { text, page } = rows[i];
     const prev = rows[i - 1]?.text ?? '';
@@ -176,6 +176,32 @@ function dropReferences(lines) {
   return i === -1 ? lines : lines.slice(0, i);
 }
 
+// Small CSV parser: quoted fields, escaped quotes (""), commas and newlines inside quotes.
+export function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') (field += '"'), i++;
+      else if (ch === '"') quoted = false;
+      else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') (row.push(field), (field = ''));
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else field += ch;
+  }
+  if (field !== '' || row.length) (row.push(field), rows.push(row));
+  return rows;
+}
+
 function textToLines(text) {
   return text.split('\n').map((raw) => ({ text: cleanLine(raw), page: null }));
 }
@@ -229,6 +255,27 @@ export async function entriesForFile(file, buffer, sidecar = {}) {
     needsMeta();
     const lines = textToLines(buffer.toString('utf8').replace(/^#+\s*/gm, ''));
     return sectionsToEntries(sectionise(lines, title), file, meta);
+  }
+  if (ext === '.docx') {
+    needsMeta();
+    const mammoth = (await import('mammoth')).default;
+    const { value } = await mammoth.extractRawText({ buffer });
+    return sectionsToEntries(sectionise(textToLines(value), title), file, meta);
+  }
+  if (ext === '.csv') {
+    // One entry per row. Columns are the entry fields; steps / examples / tags are separated by "|" or ";".
+    const [header, ...rows] = parseCsv(buffer.toString('utf8').replace(/^﻿/, ''));
+    const cols = (header ?? []).map((h) => h.trim());
+    if (!cols.includes('name') || !cols.includes('meaning')) {
+      throw new Error(`${file}: the first row must contain at least the columns "name" and "meaning" (optional: sanskrit, category, whenToUse, steps, examples, tags, source, provenance)`);
+    }
+    const list = (v) => (v ? v.split(/\s*[|;]\s*/).filter(Boolean) : []);
+    return rows
+      .filter((r) => r.some((c) => c.trim()))
+      .map((r) => {
+        const o = Object.fromEntries(cols.map((c, i) => [c, (r[i] ?? '').trim()]));
+        return normaliseJsonEntry({ ...o, steps: list(o.steps), examples: list(o.examples), tags: list(o.tags), provenance: o.provenance || undefined, source: o.source || undefined }, file, meta);
+      });
   }
   return null; // unsupported (ignored)
 }

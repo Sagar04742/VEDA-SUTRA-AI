@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startDb } from './helpers.js';
-import { entriesForFile, loadSidecar, cleanLine, chunkText } from '../../data/ingest.js';
+import JSZip from 'jszip';
+import { entriesForFile, loadSidecar, cleanLine, chunkText, parseCsv } from '../../data/ingest.js';
 
 const RAW = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../data/raw');
 let stop, Knowledge, searchKnowledge, executeTool, entries;
@@ -75,6 +76,42 @@ describe('ingest: cleaning and chunking', () => {
     await expect(bad({ name: 'A', provenance: 'verified_math' })).rejects.toThrow(/no source/);
     await expect(bad({ name: 'A', source: 's', provenance: 'made_up' })).rejects.toThrow(/provenance/);
     await expect(bad({ source: 's', provenance: 'verified_math' })).rejects.toThrow(/no name/);
+  });
+});
+
+describe('ingest: more file types', () => {
+  const sidecar = { 'notes.csv': { source: 'My notes', provenance: 'traditional_text' } };
+
+  it('reads CSV rows with quotes, commas and multi-value columns', async () => {
+    const csv = ['name,sanskrit,meaning,tags,steps', '"Sutra, test","सूत्र","Says ""hello"", then\nmore",a;b|c,"one|two"', ',,,,', 'Plain,,Second row,,', ''].join('\r\n');
+    const out = await entriesForFile('notes.csv', Buffer.from(csv), sidecar);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ name: 'Sutra, test', sanskrit: 'सूत्र', tags: ['a', 'b', 'c'], steps: ['one', 'two'], source: 'My notes', provenance: 'traditional_text' });
+    expect(out[0].meaning).toBe('Says "hello", then more');
+    expect(parseCsv('a,b\n1,2')).toEqual([['a', 'b'], ['1', '2']]);
+  });
+
+  it('explains a CSV with missing columns', async () => {
+    await expect(entriesForFile('bad.csv', Buffer.from('title,text\nx,y'), {})).rejects.toThrow(/"name" and "meaning"/);
+  });
+
+  it('reads a DOCX and splits it by headings', async () => {
+    const para = (t) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`;
+    const body = [
+      para('Introduction to the Subject'),
+      para('This is the opening paragraph of the document and it is long enough to be kept as a chunk of knowledge text.'),
+      para('Surya Siddhanta and Astronomy'),
+      para('The Surya Siddhanta is an ancient Sanskrit treatise on astronomy that describes planetary motion in detail for readers.'),
+    ].join('');
+    const zip = new JSZip();
+    zip.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+    zip.file('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+    zip.file('word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`);
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+    const out = await entriesForFile('book.docx', buffer, { 'book.docx': { source: 'My book', provenance: 'traditional_text', category: 'astronomy' } });
+    expect(out.length).toBeGreaterThanOrEqual(1);
+    expect(out.map((e) => e.meaning).join(' ')).toMatch(/Surya Siddhanta/);
+    expect(out.every((e) => e.provenance === 'traditional_text' && e.category === 'astronomy' && e.source === 'My book')).toBe(true);
   });
 });
 
