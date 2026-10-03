@@ -77,6 +77,20 @@ Set `AI_MOCK=1` in `server/.env`. A built-in stand-in replaces the Gemini/Mistra
 
 **Knowledge and retrieval.** `npm run ingest` cleans and chunks everything in `data/raw` into the `knowledge` collection. `searchKnowledge()` in `server/services/rag.js` is the single retrieval function (a weighted MongoDB text index in v1), so Atlas Vector Search can replace its body later. It is exposed to Gemini as a tool. The system prompt tells Gemini to turn follow-ups into standalone queries using the history, and the server adds a safety net: if a query finds nothing, it retries with the previous user message appended.
 
+**Languages.** The assistant replies in the language the user writes in (English, Hindi, Marathi, Tamil, Sanskrit terms in Devanagari, mixed styles). The knowledge base is mostly English, so the system prompt makes Gemini write its `searchKnowledge` queries in English and explain the result in the user's language. The app's own buttons and labels are English.
+
+**Voice input.** The microphone button uses the browser's built-in speech recognition (Chrome, Edge, Safari; not Firefox, where the button is hidden). Pick the spoken language next to the input (English, Hindi, Marathi, Bengali, Tamil, Telugu, Gujarati, Kannada, Malayalam, Punjabi); it is remembered. No API key needed. In Chrome the audio is sent to Google's speech service to be transcribed, and it needs an internet connection and microphone permission.
+
+**Images.** The paperclip attaches up to 3 pictures (JPG, PNG, WEBP) per message, for example a photo of a maths problem, a Sanskrit verse or a diagram. They are shrunk in the browser, checked on the server (size and real file type), stored in their own `images` collection (not inside the chat document) and sent to Gemini. The most recent 4 pictures stay in context for follow-up questions. Only the owner of a chat can load its pictures. Reading handwriting or blurry photos depends on the Gemini model you choose.
+
+**Tools** (toggles above the input):
+* **Web search** adds Google Search to Gemini's tools. The knowledge base and solver stay available; web material is labelled "From the web" and its links are shown under the answer. Not every Gemini model allows this combination: if the model refuses, the app tells the user and answers from the knowledge base instead. *This has only been tested against a fake client, so check it with your model.*
+* **Deep explain** asks for a longer, more structured explanation with examples and allows more searches.
+
+**Free-tier limits.** When Gemini says the free quota is used up, the user sees a clear message instead of a failure: for a per-minute limit a live countdown ("try again in 0:34") with Retry enabled when it ends; for a daily limit a message to come back later. The app's own rate limiter (`AUTH_RATE_LIMIT`, `CHAT_RATE_LIMIT`) reports a wait time the same way. A failed turn is never saved, so Retry doesn't duplicate anything, and a brand-new chat whose first message fails is discarded rather than left empty.
+
+**One answer at a time.** A chat accepts a new message only after the previous answer finishes (or is stopped), so double-clicks or two tabs cannot interleave answers. History stays strictly in order.
+
 **Honesty rules** (system prompt): answer from tools or say the knowledge base has nothing; cite the source; mention the provenance label (`verified_math` / `traditional_text` / `interpretation`) and never present traditional or interpretive claims as proven; add "educational only, not medical advice" for health topics; politely decline off-topic questions.
 
 ## Adding your data
@@ -84,7 +98,10 @@ Set `AI_MOCK=1` in `server/.env`. A built-in stand-in replaces the Gemini/Mistra
 Put files in `data/raw/` and run `npm run ingest` (safe to re-run: each file's entries are replaced). Supported:
 
 * **`.json`** – an array of entries `{ name, sanskrit, meaning, category, whenToUse, steps[], examples[], tags[], source, provenance }`. `name`, `source` and `provenance` are required. `data/raw/core-vedic-math.json` is a worked example.
-* **`.pdf`, `.md`, `.txt`** – split into sections by headings and chunked (~1000 characters). PDF extraction artefacts (page footers, LaTeX, citation markers, the bibliography) are cleaned. Chunks record their starting page in `source`.
+* **`.csv`** – one entry per row; the first row names the columns (`name` and `meaning` required; optional `sanskrit, category, whenToUse, steps, examples, tags, source, provenance`; separate several steps/examples/tags with `|` or `;`). Easiest format if you are writing data by hand in Excel or Google Sheets.
+* **`.pdf`, `.docx`, `.md`, `.txt`** – split into sections by headings and chunked (~1000 characters). PDF extraction artefacts (page footers, LaTeX, citation markers, the bibliography) are cleaned. PDF chunks record their starting page in `source`.
+
+**About "training".** Nothing is trained, on purpose. A free API can't be fine-tuned, and training on a small dataset would make the bot more likely to invent things. Instead every file you add is converted into labelled knowledge entries and retrieved at question time, so new data is used straight after `npm run ingest`, and the bot can always say where an answer came from. The better and more structured your data (clear names, Sanskrit terms, steps, examples, honest `provenance`), the better the answers.
 
 Files without their own metadata take defaults from **`data/raw/sources.json`** (`source`, `provenance`, `category`, `tags`). **Choose `provenance` deliberately**:
 
@@ -106,7 +123,7 @@ There is no ancient-science content yet beyond what the PDF touches. Until you a
 npm test
 ```
 
-Server tests (Vitest, 73 tests): auth; solver with seeded random inputs and edge cases; chat routes (ownership, DB-built history, history limit, SSE, abort with partial save, mid-stream errors); the Gemini tool loop with a scripted fake client; Mistral titles and fallbacks; ingestion cleaning; retrieval; and an end-to-end memory flow. They run against an in-memory MongoDB started once. **The first ever run downloads a mongod binary (~800 MB, a few minutes).** To use your own MongoDB, set `TEST_MONGO_URI=mongodb://127.0.0.1:27017/`.
+Server tests (Vitest, 100+ tests): auth; solver with seeded random inputs and edge cases; chat routes (ownership, DB-built history, history limit, SSE, abort with partial save, mid-stream errors); the Gemini tool loop with a scripted fake client; Mistral titles and fallbacks; ingestion cleaning; retrieval; and an end-to-end memory flow. They run against an in-memory MongoDB started once. **The first ever run downloads a mongod binary (~800 MB, a few minutes).** To use your own MongoDB, set `TEST_MONGO_URI=mongodb://127.0.0.1:27017/`.
 
 The unit tests use fake model clients, so they prove the plumbing, not the quality of Gemini's answers. That's what `npm run check:live` is for.
 

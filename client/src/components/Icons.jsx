@@ -25,3 +25,8 @@ export const CopyIcon = make(<><rect x="9" y="9" width="11" height="11" rx="2" /
 export const CheckIcon = make(<path d="M5 12.500l4.500 4.500L19 7.500" />);
 export const RetryIcon = make(<path d="M20 11a8 8 0 1 0-2.300 5.700M20 5v6h-6" />);
 export const CloseIcon = make(<path d="M6 6l12 12M18 6L6 18" />);
+export const PaperclipIcon = make(<path d="M21 11.500l-8.500 8.500a5 5 0 0 1-7-7l9-9a3.500 3.500 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8" />);
+export const MicIcon = make(<><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>);
+export const GlobeIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>);
+export const SparkIcon = make(<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" />);
+export const ClockIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>);

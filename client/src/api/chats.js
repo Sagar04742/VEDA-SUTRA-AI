@@ -8,6 +8,8 @@ export const chatsApi = {
   remove: (id) => api.delete(`/chats/${id}`),
 };
 
+export const imageUrl = (chatId, imageId) => `${API_BASE}/chats/${chatId}/images/${imageId}`;
+
 // Split an SSE text buffer into complete events. Returns [events, leftover].
 export function parseSseBuffer(buffer) {
   const events = [];
@@ -24,20 +26,21 @@ export function parseSseBuffer(buffer) {
 }
 
 // POST a message and read the Server-Sent Events stream. (EventSource cannot POST, so we use fetch.)
+// payload: { content, images: [{mimeType, data}], webSearch, deepExplain }
 // Aborting `signal` closes the connection, which also makes the server stop generating.
-export async function streamMessage(chatId, content, { signal, onEvent }) {
+export async function streamMessage(chatId, payload, { signal, onEvent }) {
   const res = await fetch(`${API_BASE}/chats/${chatId}/messages`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify(payload),
     signal,
   });
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     if (res.status === 401) location.assign('/login');
-    throw Object.assign(new Error(body.error || `Request failed (${res.status})`), { status: res.status });
+    throw Object.assign(new Error(body.error || `Request failed (${res.status})`), { code: body.code, retryAfterSeconds: body.retryAfterSeconds });
   }
 
   const reader = res.body.getReader();

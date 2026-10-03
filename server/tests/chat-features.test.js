@@ -133,6 +133,17 @@ describe('tools (web search, deep explain)', () => {
   });
 });
 
+describe('chat list', () => {
+  it('hides chats that have no messages yet', async () => {
+    await newChat(app, cookieA);
+    expect((await request(app).get('/api/chats').set('Cookie', cookieA)).body.chats).toEqual([]);
+    const id = await newChat(app, cookieA);
+    await sendMessage(app, cookieA, id, 'hello');
+    const list = (await request(app).get('/api/chats').set('Cookie', cookieA)).body.chats;
+    expect(list.map((c) => c.id)).toEqual([id]);
+  });
+});
+
 describe('limits and safety', () => {
   it('tells the user how long to wait when the AI quota is reached', async () => {
     const id = await newChat(app, cookieA);

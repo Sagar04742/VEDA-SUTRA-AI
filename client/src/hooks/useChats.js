@@ -9,7 +9,8 @@ export function useChats() {
   useEffect(() => {
     chatsApi
       .list()
-      .then(setChats)
+      // Merge instead of overwrite: a chat created while this request was in flight must not vanish.
+      .then((server) => setChats((cur) => [...cur.filter((c) => !server.some((s) => s.id === c.id)), ...server]))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -23,6 +24,8 @@ export function useChats() {
   const setTitle = useCallback((id, title) => {
     setChats((cur) => cur.map((c) => (c.id === id ? { ...c, title } : c)));
   }, []);
+
+  const dropLocal = useCallback((id) => setChats((cur) => cur.filter((c) => c.id !== id)), []);
 
   const rename = useCallback(async (id, title) => {
     const previous = chats.find((c) => c.id === id)?.title;
@@ -39,5 +42,5 @@ export function useChats() {
     setChats((cur) => cur.filter((c) => c.id !== id));
   }, []);
 
-  return { chats, loading, upsertTop, setTitle, rename, remove };
+  return { chats, loading, upsertTop, setTitle, dropLocal, rename, remove };
 }

@@ -47,8 +47,10 @@ describe('chat CRUD and ownership', () => {
 
   it('creates, lists newest first, renames and deletes', async () => {
     const a = await newChat(app, cookieA);
+    await sendMessage(app, cookieA, a, 'first');
     await sleep(5);
     const b = await newChat(app, cookieA);
+    await sendMessage(app, cookieA, b, 'second');
     const list = await request(app).get('/api/chats').set('Cookie', cookieA);
     expect(list.body.chats.map((c) => c.id)).toEqual([b, a]);
 

@@ -55,7 +55,7 @@ export function chatRoutes(ai) {
   router.get(
     '/',
     asyncHandler(async (req, res) => {
-      const chats = await Chat.find({ userId: req.user._id }).select('title createdAt updatedAt').sort({ updatedAt: -1 }).limit(200);
+      const chats = await Chat.find({ userId: req.user._id, 'messages.0': { $exists: true } }).select('title createdAt updatedAt').sort({ updatedAt: -1 }).limit(200);
       res.json({ chats: chats.map(summary) });
     })
   );
