@@ -1,25 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { startDb } from './helpers.js';
 
-process.env.JWT_SECRET = 'test-secret';
-process.env.CLIENT_URL = 'http://localhost:5173';
-
-let mongo, app, errorBody;
+let stop, app, errorBody;
 const user = { name: 'Arya', email: 'arya@example.com', password: 'password123' };
 
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
-  await mongoose.connect(mongo.getUri());
+  stop = await startDb();
   const { createApp } = await import('../src/app.js');
   ({ errorBody } = await import('../middleware/errorHandler.js'));
   app = createApp();
 }, 120000);
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongo.stop();
-});
+afterAll(() => stop());
 beforeEach(async () => {
   await mongoose.connection.db.dropDatabase();
 });

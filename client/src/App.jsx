@@ -10,7 +10,10 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<Chat />} />
+        {/* "/" and "/c/:id" share one Chat instance so state survives when a new chat gets its id. */}
+        <Route path="/" element={<Chat />}>
+          <Route path="c/:id" />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

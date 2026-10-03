@@ -43,7 +43,7 @@ function compose(responses) {
         if (rest.length) out.push('', `Related: ${rest.map((r) => r.name).join('; ')}`);
       }
     } else {
-      out.push(`**Answer: ${response.answer}** (${response.method})`, '', ...response.steps.map((s, i) => `${i + 1}. ${s}`));
+      out.push(`**Answer: ${response.answer}** (${response.method}). The working is in the Steps panel above.`);
     }
     out.push('');
   }

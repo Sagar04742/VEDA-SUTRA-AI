@@ -52,7 +52,6 @@ export function createGeminiService({ apiKey, model, client } = {}) {
             config: {
               systemInstruction: SYSTEM_PROMPT,
               ...(useTools ? { tools: [{ functionDeclarations: toolDeclarations }] } : {}),
-              temperature: 0.3,
               abortSignal: signal,
             },
           });

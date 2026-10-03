@@ -1,17 +1,20 @@
 import request from 'supertest';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { inject } from 'vitest';
 
 process.env.JWT_SECRET = 'test-secret';
 process.env.CLIENT_URL = 'http://localhost:5173';
 process.env.CHAT_RATE_LIMIT = '100000'; // tests send many requests from one IP
 
+// Connect to the shared test MongoDB (see globalSetup.js) using a database private to this test file.
+// Returns a cleanup function.
 export async function startDb() {
-  const mongo = await MongoMemoryServer.create();
-  await mongoose.connect(mongo.getUri());
+  const base = inject('mongoUri').replace(/\/?$/, '/');
+  const dbName = `test_${process.pid}_${Math.random().toString(36).slice(2, 8)}`;
+  await mongoose.connect(`${base}${dbName}`);
   return async () => {
+    await mongoose.connection.dropDatabase();
     await mongoose.disconnect();
-    await mongo.stop();
   };
 }
 

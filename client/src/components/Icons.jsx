@@ -18,3 +18,10 @@ export const TempleIcon = make(<path d="M3 21h18M5 21V10M9 21V10M15 21V10M19 21V
 export const LotusIcon = make(
   <path d="M12 4c2 2.5 2.600 5 0 8-2.600-3-2-5.500 0-8zM12 12c-.5-3-3-5-7-5 0 4 2 7 7 8M12 12c.5-3 3-5 7-5 0 4-2 7-7 8M3 14c3 0 6 2 9 6 3-4 6-6 9-6" />
 );
+export const PencilIcon = make(<path d="M4 20h4L19 9l-4-4L4 16v4zM13.500 6.500l4 4" />);
+export const TrashIcon = make(<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />);
+export const StopIcon = make(<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />);
+export const CopyIcon = make(<><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></>);
+export const CheckIcon = make(<path d="M5 12.500l4.500 4.500L19 7.500" />);
+export const RetryIcon = make(<path d="M20 11a8 8 0 1 0-2.300 5.700M20 5v6h-6" />);
+export const CloseIcon = make(<path d="M6 6l12 12M18 6L6 18" />);
