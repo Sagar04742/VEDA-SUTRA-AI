@@ -1,24 +1,42 @@
 @import 'tailwindcss';
 
-/* Warm saffron / cream palette */
+/* VedaSutra: dark temple-at-dusk palette with gold accents */
 @theme {
-  --color-cream-50: #fffbf2;
-  --color-cream-100: #fdf3e0;
-  --color-cream-200: #f6e4c4;
-  --color-saffron-400: #f59a2c;
-  --color-saffron-500: #e8830c;
-  --color-saffron-600: #c96a05;
-  --color-saffron-700: #a05204;
-  --color-maroon-700: #6b2d1a;
-  --color-maroon-900: #3f1a0e;
+  --color-ink-950: #0b0806;
+  --color-ink-900: #120e0b;
+  --color-ink-800: #1a1410;
+  --color-ink-700: #251d16;
+  --color-gold-200: #f1ddb4;
+  --color-gold-300: #e3c487;
+  --color-gold-400: #d3a95c;
+  --color-gold-500: #b98a3e;
+  --color-gold-600: #8f6a2c;
+  --color-parchment: #f6ead6;
   --font-sans: 'Inter', system-ui, sans-serif;
-  --font-serif: 'Noto Serif', Georgia, serif;
+  --font-serif: 'Cormorant Garamond', 'Noto Serif', Georgia, serif;
+  --font-deva: 'Noto Serif Devanagari', serif;
 }
 
 body {
   margin: 0;
-  background: var(--color-cream-50);
-  color: var(--color-maroon-900);
+  background: var(--color-ink-950);
+  color: var(--color-parchment);
   font-family: var(--font-sans);
   line-height: 1.6;
+}
+
+/* Thin gold scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(185 138 62 / 0.4) transparent;
+}
+
+/* Hero backdrop: dusk glow behind the mandala. Drop a photo at client/public/hero-bg.jpg to overlay it. */
+.hero-bg {
+  background:
+    linear-gradient(to bottom, rgb(11 8 6 / 0.15), rgb(11 8 6 / 0.85) 78%),
+    url('/hero-bg.jpg') center / cover no-repeat,
+    radial-gradient(ellipse 55% 40% at 62% 48%, rgb(232 131 12 / 0.38), transparent 70%),
+    radial-gradient(ellipse 90% 60% at 60% 55%, rgb(120 60 20 / 0.35), transparent 75%),
+    var(--color-ink-950);
 }

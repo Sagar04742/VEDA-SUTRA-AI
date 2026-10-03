@@ -2,7 +2,7 @@
 
 A MERN chatbot for Vedic mathematics and ancient science. (Built phase by phase; this README grows with each phase.)
 
-**Status:** Phase 1 – setup + auth.
+**Status:** Phase 1 – setup + auth, with the VedaSutra dark-gold UI shell (chat is wired up in phase 2). To use a real backdrop photo, save it as `client/public/hero-bg.jpg`.
 
 ## Requirements
 - Node.js 20+ (developed on 24)
