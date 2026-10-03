@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+/* Warm saffron / cream palette */
+@theme {
+  --color-cream-50: #fffbf2;
+  --color-cream-100: #fdf3e0;
+  --color-cream-200: #f6e4c4;
+  --color-saffron-400: #f59a2c;
+  --color-saffron-500: #e8830c;
+  --color-saffron-600: #c96a05;
+  --color-saffron-700: #a05204;
+  --color-maroon-700: #6b2d1a;
+  --color-maroon-900: #3f1a0e;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Noto Serif', Georgia, serif;
+}
+
+body {
+  margin: 0;
+  background: var(--color-cream-50);
+  color: var(--color-maroon-900);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
