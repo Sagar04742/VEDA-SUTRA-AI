@@ -54,6 +54,22 @@ This checks the env vars, MongoDB and the knowledge base, then runs real convers
 
 Set `AI_MOCK=1` in `server/.env`. A built-in stand-in replaces the Gemini/Mistral SDK clients so you can see streaming, the Stop button, the StepViewer, history and retrieval working. **It is not an AI**: it picks a tool with simple rules and prints what the tool returned (its replies are labelled). Never set it in production.
 
+## Models and free-tier limits
+
+`npm run models -w server` lists the models your keys can really use (a model can be listed yet refused: `gemini-2.5-flash` was listed for the project key but returned 404 "no longer available to new users").
+
+Chosen for a **free** key after measuring tool calling, speed and rate limits on the project key:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Handles streaming + tool calling + images, about 1 s per call, ~15 calls/minute |
+| `GEMINI_FALLBACK_MODEL` | `gemini-3.1-flash-lite` | Free quotas are per model, so when the main model is limited the answer restarts on this one (nothing is shown twice) |
+| `MISTRAL_MODEL` | `ministral-8b-latest` | Short, good titles (also in Hindi); `mistral-small` was throttled on the free plan |
+
+Measured on the free tier: `gemini-3.5-flash` and `gemini-3.8-flash` give better answers but allow only about 6 calls per minute, and one question needs 2–3 calls (a tool call, then the answer), so they run dry almost immediately. If you move to a paid plan, set `GEMINI_MODEL=gemini-3.5-flash` (or newer) for the best quality.
+
+When every model is limited, the user sees a message with a live countdown instead of an error. **Web search** (Google Search grounding) was refused on the free key (quota 0); the app then answers from the knowledge base and says so.
+
 ## Features and how they work
 
 **Memory.** On every message the server loads that chat's saved messages from MongoDB, keeps the last `CHAT_HISTORY_LIMIT` (default 20), and sends them to Gemini with the new message. History sent by the browser is ignored. The system prompt is passed separately from the history (Gemini's `systemInstruction`), so trimming a long chat can never drop it. Every chat route checks that the chat belongs to the logged-in user (other users get a 404).
@@ -101,6 +117,8 @@ Put files in `data/raw/` and run `npm run ingest` (safe to re-run: each file's e
 * **`.csv`** – one entry per row; the first row names the columns (`name` and `meaning` required; optional `sanskrit, category, whenToUse, steps, examples, tags, source, provenance`; separate several steps/examples/tags with `|` or `;`). Easiest format if you are writing data by hand in Excel or Google Sheets.
 * **`.pdf`, `.docx`, `.md`, `.txt`** – split into sections by headings and chunked (~1000 characters). PDF extraction artefacts (page footers, LaTeX, citation markers, the bibliography) are cleaned. PDF chunks record their starting page in `source`.
 
+**Dataset formats that are recognised automatically** (see `data/formats.js`): the "AIKS" record PDF (`AIKS-00001 | domain | topic` with Q/A/Source lines), the "starter" dataset PDF (`IAM-001 — …` records) and question-bank CSVs (`id, category, type, difficulty, question, answer, source`). For the AIKS file the 800 arithmetic-practice records are *not* imported (the solver computes those exactly, and thousands of near-identical "Calculate 2 × 3" entries would drown real knowledge); the ~400 history records are merged by topic because they repeat the same answer under many phrasings. In the question bank, the 47 exact calculations are skipped for the same reason, and the myth-busting "Hallucination Trap" rows are kept because they carry sourced corrections. Mark a file `"skip": true` in `sources.json` to leave it out (used for the two duplicates of the question bank).
+
 **About "training".** Nothing is trained, on purpose. A free API can't be fine-tuned, and training on a small dataset would make the bot more likely to invent things. Instead every file you add is converted into labelled knowledge entries and retrieved at question time, so new data is used straight after `npm run ingest`, and the bot can always say where an answer came from. The better and more structured your data (clear names, Sanskrit terms, steps, examples, honest `provenance`), the better the answers.
 
 Files without their own metadata take defaults from **`data/raw/sources.json`** (`source`, `provenance`, `category`, `tags`). **Choose `provenance` deliberately**:
@@ -117,13 +135,19 @@ Files without their own metadata take defaults from **`data/raw/sources.json`** 
 
 There is no ancient-science content yet beyond what the PDF touches. Until you add it, the bot will say the knowledge base has nothing on such topics rather than guess.
 
+## Checking answer quality
+
+`npm run eval` asks the question bank (`data/raw/questions_extended.csv`) through the real app, one fresh chat per question, and writes `data/processed/eval-report.md` for you to read. Options: `-- --category traps|sutras|science|calc`, `-- --limit 10`, `-- --calc` (also the 47 exact calculations). Scoring is a keyword check, not a judge model, so read the REVIEW rows yourself. The knowledge-type answers from that file were also loaded into the knowledge base, so a good score shows the pipeline works, not that the bot generalises: for a fair test keep some questions out of `data/raw`.
+
+The 47 exact calculations are also a **unit test** (`server/tests/solver-more.test.js`): the solver must answer every one correctly using the technique the question names.
+
 ## Tests
 
 ```bash
 npm test
 ```
 
-Server tests (Vitest, 100+ tests): auth; solver with seeded random inputs and edge cases; chat routes (ownership, DB-built history, history limit, SSE, abort with partial save, mid-stream errors); the Gemini tool loop with a scripted fake client; Mistral titles and fallbacks; ingestion cleaning; retrieval; and an end-to-end memory flow. They run against an in-memory MongoDB started once. **The first ever run downloads a mongod binary (~800 MB, a few minutes).** To use your own MongoDB, set `TEST_MONGO_URI=mongodb://127.0.0.1:27017/`.
+Server tests (Vitest, 190+ tests): auth; solver with seeded random inputs and edge cases; chat routes (ownership, DB-built history, history limit, SSE, abort with partial save, mid-stream errors); the Gemini tool loop with a scripted fake client; Mistral titles and fallbacks; ingestion cleaning; retrieval; and an end-to-end memory flow. They run against an in-memory MongoDB started once. **The first ever run downloads a mongod binary (~800 MB, a few minutes).** To use your own MongoDB, set `TEST_MONGO_URI=mongodb://127.0.0.1:27017/`.
 
 The unit tests use fake model clients, so they prove the plumbing, not the quality of Gemini's answers. That's what `npm run check:live` is for.
 
@@ -177,4 +201,5 @@ Chat API (all require login): `GET/POST /api/chats`, `GET/PATCH/DELETE /api/chat
 * **"The AI model was not found"**: `GEMINI_MODEL` isn't a valid model ID for your key.
 * **Chats answer "knowledge base has nothing"**: run `npm run ingest`.
 * **Can't connect to MongoDB**: start Docker (`docker compose up -d`) or check your Atlas URI and IP allow-list.
+* **`querySrv ECONNREFUSED` with an Atlas (`mongodb+srv://`) URL**: your computer hands Node a local DNS server (often a VPN, Docker or WSL adapter) that refuses SRV lookups. The app now retries automatically with public DNS (1.1.1.1 / 8.8.8.8) and prints a one-line notice. To choose resolvers yourself set `DNS_SERVERS=1.1.1.1,8.8.8.8` in `server/.env`.
 * **Rate limited**: adjust `AUTH_RATE_LIMIT` / `CHAT_RATE_LIMIT` (see `.env.example`).

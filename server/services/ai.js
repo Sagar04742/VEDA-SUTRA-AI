@@ -10,6 +10,7 @@ export function createAi() {
   const gemini = createGeminiService({
     apiKey: env.gemini.apiKey,
     model: mock ? 'mock' : env.gemini.model,
+    fallbackModel: mock ? undefined : env.gemini.fallbackModel,
     client: mock ? createMockGeminiClient() : undefined,
   });
   const titles = createTitleService({

@@ -1,9 +1,23 @@
 {
-  "_comment": "Per-file defaults used by data/ingest.js for files that do not carry their own metadata. provenance must be verified_math | traditional_text | interpretation.",
+  "_comment": "Per-file settings used by data/ingest.js. provenance must be verified_math | traditional_text | interpretation. \"skip\": true leaves a file out (for example a duplicate of another file).",
   "Vedic Mathematics Application Datasets.pdf": {
     "source": "Vedic Mathematics Application Datasets (research survey PDF supplied by the project owner; it summarises findings reported in the papers it cites)",
     "provenance": "interpretation",
     "category": "research",
     "tags": ["research", "survey", "vedic math", "vedic maths", "vedic mathematics"]
-  }
+  },
+  "Final_Vedic_Maths_Ancient_Indian_Science_Training_Dataset.pdf": {
+    "source": "AIKS training dataset (project owner)",
+    "provenance": "interpretation"
+  },
+  "Vedic_Maths_Ancient_Indian_Science_Training_Dataset.pdf": {
+    "source": "Vedic Maths & Ancient Indian Science starter dataset (project owner)",
+    "provenance": "interpretation"
+  },
+  "questions_extended.csv": {
+    "source": "Project question bank",
+    "provenance": "interpretation"
+  },
+  "questions_extended.pdf": { "skip": true },
+  "Vedic_Math_Dataset_Pack.pdf": { "skip": true }
 }

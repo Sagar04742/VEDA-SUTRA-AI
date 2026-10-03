@@ -9,6 +9,7 @@ import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseAiks, parseStarter, parseQaRows } from './formats.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RAW_DIR = path.join(HERE, 'raw');
@@ -242,6 +243,8 @@ export async function entriesForFile(file, buffer, sidecar = {}) {
   };
   const title = path.basename(file, ext);
 
+  if (meta.skip) return []; // listed in sources.json as "skip" (for example a duplicate of another file)
+
   if (ext === '.json') {
     const data = JSON.parse(buffer.toString('utf8'));
     return (Array.isArray(data) ? data : data.entries ?? []).map((r) => normaliseJsonEntry(r, file, meta));
@@ -249,6 +252,10 @@ export async function entriesForFile(file, buffer, sidecar = {}) {
   if (ext === '.pdf') {
     needsMeta();
     const lines = dropReferences(await readPdfLines(buffer));
+    // Known dataset layouts get a dedicated parser; anything else is split by headings.
+    const text = lines.map((l) => l.text).join('\n');
+    if (/^AIKS-\d+ \| /m.test(text)) return parseAiks(lines, file);
+    if (/^(IAM|AIS)-\d+ — /m.test(text)) return parseStarter(lines, file);
     return sectionsToEntries(sectionise(lines, title), file, meta);
   }
   if (ext === '.md' || ext === '.txt') {
@@ -266,6 +273,7 @@ export async function entriesForFile(file, buffer, sidecar = {}) {
     // One entry per row. Columns are the entry fields; steps / examples / tags are separated by "|" or ";".
     const [header, ...rows] = parseCsv(buffer.toString('utf8').replace(/^﻿/, ''));
     const cols = (header ?? []).map((h) => h.trim());
+    if (cols.includes('question') && cols.includes('answer')) return parseQaRows([header, ...rows], file); // question bank
     if (!cols.includes('name') || !cols.includes('meaning')) {
       throw new Error(`${file}: the first row must contain at least the columns "name" and "meaning" (optional: sanskrit, category, whenToUse, steps, examples, tags, source, provenance)`);
     }
@@ -302,8 +310,9 @@ async function main() {
       console.log(`- ${file}: unsupported type, skipped`);
       continue;
     }
-    await writeFile(path.join(OUT_DIR, `${path.basename(file, path.extname(file))}.json`), JSON.stringify(entries, null, 2));
-    console.log(`- ${file}: ${entries.length} entries`);
+    // Keep the extension in the name so questions.csv and questions.pdf cannot overwrite each other.
+    if (!sidecar[file]?.skip) await writeFile(path.join(OUT_DIR, `${file}.json`), JSON.stringify(entries, null, 2));
+    console.log(sidecar[file]?.skip ? `- ${file}: skipped (marked skip in sources.json)` : `- ${file}: ${entries.length} entries`);
     all.push({ file, entries });
   }
 
@@ -313,7 +322,8 @@ async function main() {
   const mongoose = (await import('mongoose')).default;
   const { default: Knowledge } = await import('../server/models/Knowledge.js');
   if (!process.env.MONGO_URI) throw new Error('MONGO_URI is not set (put it in server/.env)');
-  await mongoose.connect(process.env.MONGO_URI);
+  const { connectDB } = await import('../server/config/db.js'); // same connection logic as the server (DNS fallback)
+  await connectDB(process.env.MONGO_URI);
   try {
     for (const { file, entries } of all) {
       await Knowledge.deleteMany({ sourceFile: file });

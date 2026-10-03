@@ -62,32 +62,46 @@ async function main() {
     const call = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: body && JSON.stringify(body) });
 
     const { chat } = await (await call('/chats')).json();
-    const ask = async (content) => {
+    const askOnce = async (content) => {
       const res = await call(`/chats/${chat.id}/messages`, { content });
       if (!res.ok) return { error: (await res.json()).error, events: [] };
-      return { events: await readSse(res) };
+      const events = await readSse(res);
+      return { events, errorInfo: events.find((e) => e.event === 'error')?.data };
     };
+    // Free API keys allow only a few requests per minute. If Google says "wait N seconds", do what a user would:
+    // wait, then ask again once.
+    const ask = async (content) => {
+      let r = await askOnce(content);
+      const wait = r.errorInfo?.code === 'rate_limit' ? r.errorInfo.retryAfterSeconds : null;
+      if (wait && wait <= 120) {
+        console.log(`      (free-tier limit reached: waiting ${wait}s, then asking again)`);
+        await new Promise((res) => setTimeout(res, (wait + 2) * 1000));
+        r = await askOnce(content);
+      }
+      return r;
+    };
+    const failure = (r) => r.error ?? r.errorInfo?.message;
 
     // Memory test
     const q1 = await ask('What is Vedic math?');
-    const err1 = q1.error ?? q1.events.find((e) => e.event === 'error')?.data.message;
+    const err1 = failure(q1);
     if (!ok('first answer streamed', !err1 && answerOf(q1.events).length > 20, err1 ?? `${answerOf(q1.events).length} chars`)) return;
     ok('answer streamed in several pieces (real streaming)', q1.events.filter((e) => e.event === 'token').length > 1);
     ok('chat title arrived live (event: title)', q1.events.some((e) => e.event === 'title'), q1.events.find((e) => e.event === 'title')?.data.title);
 
     const q2 = await ask('What are the types of it?');
     const a2 = answerOf(q2.events);
-    ok('MEMORY: "types of it" is answered about Vedic maths', /vedic/i.test(a2) && /sutra|technique|multipl|type|kind/i.test(a2), a2.replace(/\s+/g, ' ').slice(0, 110) + '...');
+    ok('MEMORY: "types of it" is answered about Vedic maths', !failure(q2) && /vedic/i.test(a2) && /sutra|technique|multipl|type|kind/i.test(a2), failure(q2) ?? a2.replace(/\s+/g, ' ').slice(0, 110) + '...');
 
     // Solver tool
     const q3 = await ask('Multiply 98 × 97');
     const solver = q3.events.find((e) => e.event === 'solver');
-    ok('SOLVER: Gemini called the solver tool', Boolean(solver), solver?.data.tool);
+    ok('SOLVER: Gemini called the solver tool', !failure(q3) && Boolean(solver), failure(q3) ?? solver?.data.tool);
     ok('SOLVER: answer is 9506 with steps', solver?.data.answer === '9506' && solver.data.steps.length > 2);
 
     // Honesty / scope
     const q4 = await ask('What is the capital of France?');
-    ok('off-topic question is declined (no fabricated answer)', !/\bParis\b/.test(answerOf(q4.events)) || /vedic|ancient|scope|only/i.test(answerOf(q4.events)), answerOf(q4.events).replace(/\s+/g, ' ').slice(0, 90));
+    ok('off-topic question is declined (no fabricated answer)', !failure(q4) && (!/Paris/.test(answerOf(q4.events)) || /vedic|ancient|scope|only/i.test(answerOf(q4.events))), failure(q4) ?? answerOf(q4.events).replace(/\s+/g, ' ').slice(0, 90));
 
     // Saved to DB with ownership
     const saved = await Chat.findById(chat.id);

@@ -30,7 +30,7 @@ function fakeClient(script) {
     },
   };
 }
-const svc = (client) => createGeminiService({ model: 'm', client });
+const svc = (client) => createGeminiService({ model: 'm', client, retryDelayMs: 0 });
 const run = (client, extra = {}) =>
   svc(client).streamChat({ messages: [{ role: 'user', content: 'hi' }], signal: new AbortController().signal, ...extra });
 
@@ -161,6 +161,33 @@ describe('gemini: images, web search and deep explain', () => {
     expect(out.text).toBe('answered from the knowledge base');
   });
 
+  it('also falls back when Google Search is refused by the plan (403 / quota 429 on a free key)', async () => {
+    for (const status of [403, 429]) {
+      const client = fakeClient([Object.assign(new Error('plan'), { status }), [{ text: 'from the knowledge base' }]]);
+      const notices = [];
+      const out = await run(client, { options: { webSearch: true }, onNotice: (n) => notices.push(n) });
+      expect(out.text).toBe('from the knowledge base');
+      expect(notices[0]).toMatch(/plan or model/);
+      expect(client.requests[1].config.tools.some((t) => t.googleSearch)).toBe(false);
+    }
+  });
+
+  it('if the retry without search is also limited, the limit error reaches the user', async () => {
+    const limited = Object.assign(new Error('quota'), { status: 429 });
+    await expect(run(fakeClient([limited, limited]), { options: { webSearch: true } })).rejects.toThrow('quota');
+  });
+
+  it('retries once when the model is briefly busy (503), but not forever', async () => {
+    const busy = Object.assign(new Error('high demand'), { status: 503 });
+    const ok = fakeClient([busy, [{ text: 'fine now' }]]);
+    expect((await run(ok)).text).toBe('fine now');
+    expect(ok.requests).toHaveLength(2);
+
+    const stuck = fakeClient([busy, busy, [{ text: 'never' }]]);
+    await expect(run(stuck)).rejects.toThrow('high demand');
+    expect(stuck.requests).toHaveLength(2);
+  });
+
   it('does not hide other errors behind the web-search fallback', async () => {
     const quota = Object.assign(new Error('quota'), { status: 429 });
     await expect(run(fakeClient([quota]), { options: { webSearch: true } })).rejects.toThrow('quota');
@@ -179,5 +206,47 @@ describe('gemini: images, web search and deep explain', () => {
     for (const phrase of ['friendly and positive', 'language the user writes in', 'searchKnowledge queries in English', 'IMAGES', 'Never guess digits']) {
       expect(SYSTEM_PROMPT).toContain(phrase);
     }
+  });
+});
+
+describe('fallback model when the main model is rate limited', () => {
+  const limited = () => Object.assign(new Error(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', code: 429 } })), { status: 429 });
+  const withFallback = (client) => createGeminiService({ model: 'main', fallbackModel: 'backup', client, retryDelayMs: 0 });
+  const go = (client, extra = {}) => withFallback(client).streamChat({ messages: [{ role: 'user', content: 'hi' }], signal: new AbortController().signal, ...extra });
+
+  it('answers with the fallback model when the main one is limited at the start', async () => {
+    const client = fakeClient([limited(), [{ text: 'from the backup model' }]]);
+    const out = await go(client);
+    expect(out.text).toBe('from the backup model');
+    expect(client.requests.map((r) => r.model)).toEqual(['main', 'backup']);
+  });
+
+  it('restarts cleanly on the fallback model when the limit hits after a tool call, without repeating the solver steps', async () => {
+    const call = { functionCall: { name: 'vedic_multiply', args: { a: '98', b: '97' } } };
+    const client = fakeClient([[call], limited(), [call], [{ text: '98 × 97 = 9506' }]]);
+    const shown = [];
+    const out = await go(client, { onSolver: (s) => shown.push(s.answer) });
+    expect(client.requests.map((r) => r.model)).toEqual(['main', 'main', 'backup', 'backup']);
+    expect(out.text).toBe('98 × 97 = 9506');
+    expect(out.solver).toHaveLength(1);
+    expect(shown).toEqual(['9506']); // streamed to the user once, not twice
+  });
+
+  it('does not restart once text has already been shown to the user', async () => {
+    const client = fakeClient([[{ text: 'Let me check. ' }, { functionCall: { name: 'digit_sum', args: { number: '12' } } }], limited(), [{ text: 'never used' }]]);
+    await expect(go(client)).rejects.toThrow();
+    expect(client.requests.map((r) => r.model)).toEqual(['main', 'main']);
+  });
+
+  it('passes the error on when the fallback is limited too, or there is no fallback', async () => {
+    await expect(go(fakeClient([limited(), limited()]))).rejects.toThrow();
+    const lonely = createGeminiService({ model: 'main', client: fakeClient([limited()]), retryDelayMs: 0 });
+    await expect(lonely.streamChat({ messages: [{ role: 'user', content: 'hi' }], signal: new AbortController().signal })).rejects.toThrow();
+  });
+
+  it('does not switch models for other kinds of errors', async () => {
+    const client = fakeClient([Object.assign(new Error('bad request'), { status: 400 })]);
+    await expect(go(client)).rejects.toThrow('bad request');
+    expect(client.requests).toHaveLength(1);
   });
 });

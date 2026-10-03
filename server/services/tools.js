@@ -15,7 +15,11 @@ const SOLVER_TOOLS = {
       properties: {
         a: num,
         b: num,
-        method: { type: 'string', enum: ['auto', 'nikhilam', 'urdhva'], description: 'Optional. Default auto.' },
+        method: {
+          type: 'string',
+          enum: ['auto', 'nikhilam', 'urdhva', 'ekanyunena', 'antyayor'],
+          description: "Optional, default auto. Use the technique the user names: nikhilam (near a power of ten), urdhva (vertically and crosswise), ekanyunena (multiplying by 9, 99, 999), antyayor (Antyayor Dashake'pi: last digits add to 10, other digits equal).",
+        },
       },
       required: ['a', 'b'],
     },
@@ -28,11 +32,16 @@ const SOLVER_TOOLS = {
       type: 'object',
       properties: {
         number: num,
-        method: { type: 'string', enum: ['auto', 'ends_in_5', 'near_base'], description: 'Optional. Default auto.' },
+        method: { type: 'string', enum: ['auto', 'ends_in_5', 'near_base', 'half_base'], description: 'Optional, default auto. half_base squares numbers near 50, 500, 5000 (Yavadunam with a half base).' },
       },
       required: ['number'],
     },
     run: ({ number, method }) => solver.square(number, method || 'auto'),
+  },
+  vedic_divide_by_9: {
+    description: 'Divide a whole number by 9 using the Vedic running-totals method and return quotient and remainder with steps.',
+    parameters: { type: 'object', properties: { number: num }, required: ['number'] },
+    run: ({ number }) => solver.divideBy9(number),
   },
   vinculum_convert: {
     description: 'Convert a positive whole number to vinculum form (digits above 5 become barred digits). Returns the digits list where barred digits are negative.',
@@ -112,7 +121,7 @@ export async function executeTool(name, args = {}, ctx = {}) {
   if (!tool) return { error: `Unknown tool: ${name}` };
   try {
     const r = tool.run(args);
-    return { method: r.method, answer: r.answer, steps: r.steps, ...(r.digits ? { digits: r.digits } : {}), ...(r.divisible !== undefined ? { divisible: r.divisible } : {}) };
+    return { method: r.method, answer: r.answer, steps: r.steps, ...(r.quotient !== undefined ? { quotient: r.quotient, remainder: r.remainder } : {}), ...(r.digits ? { digits: r.digits } : {}), ...(r.divisible !== undefined ? { divisible: r.divisible } : {}) };
   } catch (e) {
     if (e instanceof solver.SolverError) return { error: e.message };
     throw e;

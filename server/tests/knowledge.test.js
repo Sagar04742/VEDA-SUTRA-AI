@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startDb } from './helpers.js';
@@ -18,8 +18,8 @@ beforeAll(async () => {
   // Load the real raw data the same way `npm run ingest` does.
   const sidecar = await loadSidecar();
   entries = [];
-  for (const file of ['core-vedic-math.json', 'Vedic Mathematics Application Datasets.pdf']) {
-    entries.push(...(await entriesForFile(file, await readFile(path.join(RAW, file)), sidecar)));
+  for (const file of (await readdir(RAW)).filter((f) => !f.startsWith('.') && f !== 'sources.json')) {
+    entries.push(...((await entriesForFile(file, await readFile(path.join(RAW, file)), sidecar)) ?? []));
   }
   await Knowledge.insertMany(entries);
   await Knowledge.syncIndexes();
@@ -46,7 +46,7 @@ describe('ingest: cleaning and chunking', () => {
   });
 
   it('turns the PDF into clean, labelled, page-referenced entries', () => {
-    const pdf = entries.filter((e) => e.sourceFile.endsWith('.pdf'));
+    const pdf = entries.filter((e) => e.sourceFile === 'Vedic Mathematics Application Datasets.pdf');
     expect(pdf.length).toBeGreaterThan(15);
     for (const e of pdf) {
       expect(e.provenance).toBe('interpretation');
@@ -115,6 +115,71 @@ describe('ingest: more file types', () => {
   });
 });
 
+describe('ingest: the supplied project datasets', () => {
+  const from = (file) => entries.filter((e) => e.sourceFile === file);
+
+  it('imports the 1,203-record file as distinct knowledge only (no arithmetic filler, no corrupt steps)', () => {
+    const rows = from('Final_Vedic_Maths_Ancient_Indian_Science_Training_Dataset.pdf');
+    expect(rows.length).toBeGreaterThanOrEqual(14);
+    expect(rows.length).toBeLessThanOrEqual(30); // 800 arithmetic + ~400 repeated phrasings are collapsed
+    for (const e of rows) {
+      expect(e.meaning).not.toMatch(/Calculate|Cross-subtract/);
+      expect(e.steps.join('')).not.toMatch(/^[a-z ]$/); // the file's "steps" are letters of a word; never imported
+      expect(e.meaning).not.toMatch(/training-friendly/i);
+      expect(['verified_math', 'traditional_text', 'interpretation']).toContain(e.provenance);
+      expect(e.source).toMatch(/AIKS/);
+    }
+    const bhaskara = rows.find((e) => e.name === 'Bhaskara II');
+    expect(bhaskara.meaning).toMatch(/Lilavati/);
+    expect(bhaskara.meaning).toMatch(/Bijaganita/);
+    expect(bhaskara.meaning.match(/Lilavati is a mathematical work/g)).toHaveLength(1); // repeated answers merged
+    expect(rows.some((e) => /^Source:/.test(e.name))).toBe(true);
+    expect(rows.some((e) => /Methodology|Licensing|Verification/i.test(e.name))).toBe(false);
+  });
+
+  it('imports the starter dataset history records with their cautions', () => {
+    const rows = from('Vedic_Maths_Ancient_Indian_Science_Training_Dataset.pdf');
+    expect(rows).toHaveLength(11);
+    const metallurgy = rows.find((e) => /metallurgy/i.test(e.name));
+    expect(metallurgy.meaning).toMatch(/Separate archaeological evidence/);
+    expect(rows.find((e) => /Aryabhatiya/.test(e.name)).provenance).toBe('traditional_text');
+  });
+
+  it('imports the question bank without the solver-answerable calculations', () => {
+    const rows = from('questions_extended.csv');
+    expect(rows).toHaveLength(39); // 86 questions - 47 exact calculations
+    expect(rows.filter((e) => e.category === 'hallucination-trap')).toHaveLength(7);
+    expect(rows.filter((e) => e.category === 'sutra-identification')).toHaveLength(13);
+    expect(rows.some((e) => /squared|d+ x d+/.test(e.name) && e.category === 'calculation' && /exact/.test(e.tags.join()))).toBe(false);
+    const speed = rows.find((e) => /speed of light/.test(e.name));
+    expect(speed.meaning).toMatch(/No Vedic text states it/);
+    expect(speed.meaning).not.toMatch(/^Common claim fact-check. Trap./);
+    expect(speed.tags).toContain('myth');
+    expect(speed.source).toMatch(/Historians of science/);
+  });
+
+  it('skips the duplicate files listed in sources.json', async () => {
+    const sidecar = await loadSidecar();
+    expect(await entriesForFile('questions_extended.pdf', Buffer.from('anything'), sidecar)).toEqual([]);
+    expect(await entriesForFile('Vedic_Math_Dataset_Pack.pdf', Buffer.from('anything'), sidecar)).toEqual([]);
+    expect(entries.filter((e) => ['questions_extended.pdf', 'Vedic_Math_Dataset_Pack.pdf'].includes(e.sourceFile))).toHaveLength(0);
+  });
+
+  it('every entry from every file is valid and has no duplicate names within a file and category', () => {
+    for (const e of entries) {
+      expect(['verified_math', 'traditional_text', 'interpretation']).toContain(e.provenance);
+      expect(e.name.length).toBeGreaterThan(2);
+      expect(e.source.length).toBeGreaterThan(3);
+    }
+    const seen = new Set();
+    for (const e of entries.filter((x) => x.sourceFile !== 'Vedic Mathematics Application Datasets.pdf')) {
+      const key = [e.sourceFile, e.category, e.name].join('|');
+      expect(seen.has(key), key).toBe(false);
+      seen.add(key);
+    }
+  });
+});
+
 describe('retrieval (searchKnowledge)', () => {
   const top = async (q, n = 1) => (await searchKnowledge(q, { limit: n })).map((r) => r.name);
 
@@ -141,6 +206,20 @@ describe('retrieval (searchKnowledge)', () => {
     expect(r.score).toBeGreaterThan(0);
     const [t] = await searchKnowledge('Nikhilam multiplication near a base');
     expect(['verified_math', 'traditional_text']).toContain(t.provenance);
+  });
+
+  it('finds the new myth-busting and history content', async () => {
+    expect((await top('Which Vedic verse states the speed of light?'))[0]).toMatch(/speed of light/);
+    expect((await top('Does the Vymanika Shastra prove ancient Indian aeroplanes?'))[0]).toMatch(/Vymanika/);
+    expect((await top('Did Aryabhata invent zero?'))[0]).toMatch(/invent zero/);
+    expect((await top('Who was Pingala?'))[0]).toMatch(/Pingala/);
+    expect((await top('What is the chakravala method?'))[0]).toMatch(/chakravala/);
+    // The bot is shown the top 4 results; the sourced correction must be among them.
+    expect((await top('Where in the Atharvaveda are the 16 sutras found?', 4)).join(' | ')).toMatch(/Where in the Atharvaveda/);
+    const lila = await top('Tell me about Bhaskara II and Lilavati', 3);
+    expect(lila.join(' | ')).toMatch(/Bhaskara II/);
+    const sulba = await searchKnowledge('Sulba Sutras fire altars geometry', { limit: 3 });
+    expect(sulba.map((r) => r.name).join(' | ')).toMatch(/Sulba/i);
   });
 
   it('returns nothing for unrelated questions instead of guessing', async () => {
