@@ -54,6 +54,19 @@ This checks the env vars, MongoDB and the knowledge base, then runs real convers
 
 Set `AI_MOCK=1` in `server/.env`. A built-in stand-in replaces the Gemini/Mistral SDK clients so you can see streaming, the Stop button, the StepViewer, history and retrieval working. **It is not an AI**: it picks a tool with simple rules and prints what the tool returned (its replies are labelled). Never set it in production.
 
+## Pages
+
+| Address | What it is |
+| --- | --- |
+| `/` | The home page: what VedaSutra is, how it is built, what it can do, and a **Start** button. Public. The library numbers on it are read live from the database. |
+| `/login`, `/signup` | Shown only when a visitor needs an account. After logging in you go back to where you were heading (for example straight to `/chat`). |
+| `/chat`, `/chat/c/:id` | The assistant. The sidebar can be closed with its arrow and reopened with the menu button (remembered). |
+| `/profile` | Click your name in the sidebar. Level and progress, questions, conversations, calculations, learning streak, a 14-day activity chart, what you explore (Vedic maths, ancient science, calculations), techniques used, languages, badges and recent questions. It is computed from your own saved chats only (`GET /api/profile/stats`); nothing extra is stored. |
+
+While a page restores your session a branded loader is shown; before any JavaScript has loaded, a small loader built into `index.html` is shown instead of a blank screen.
+
+The **Vedic Maths** and **Ancient Science** buttons put a different starter question in the box each time (16 each, shuffled like a deck so nothing repeats until all have been shown; the lists are in `client/src/utils/prompts.js`).
+
 ## Models and free-tier limits
 
 `npm run models -w server` lists the models your keys can really use (a model can be listed yet refused: `gemini-2.5-flash` was listed for the project key but returned 404 "no longer available to new users").
@@ -66,7 +79,7 @@ Chosen for a **free** key after measuring tool calling, speed and rate limits on
 | `GEMINI_FALLBACK_MODEL` | `gemini-3.1-flash-lite` | Free quotas are per model, so when the main model is limited the answer restarts on this one (nothing is shown twice) |
 | `MISTRAL_MODEL` | `ministral-8b-latest` | Short, good titles (also in Hindi); `mistral-small` was throttled on the free plan |
 
-**Model picker (the three answer levels).** Click the logo in the chat to choose how much detail you want. The choice is remembered in the browser and sent with each message:
+**Model picker (the three answer levels).** Click the lotus logo in the message box to choose how much detail you want. The choice is remembered in the browser and sent with each message:
 
 | Level | Model setting | Answer style |
 | --- | --- | --- |
@@ -78,7 +91,7 @@ A level whose model is not set uses the one below it. If a level's model is busy
 
 Measured on the free tier: `gemini-3.5-flash` and `gemini-3.8-flash` give better answers but allow only about 6 calls per minute, and one question needs 2–3 calls (a tool call, then the answer), so they run dry almost immediately. If you move to a paid plan, set `GEMINI_MODEL=gemini-3.5-flash` (or newer) for the best quality.
 
-When every model is limited, the user sees a message with a live countdown instead of an error. **Web search** (Google Search grounding) was refused on the free key (quota 0); the app then answers from the knowledge base and says so.
+When every model is limited, the user sees a message with a live countdown instead of an error. **Web search** (Google Search grounding) is refused on the free key (quota 0, tested on every model). The server checks once at start-up and then every 30 minutes of use; while it is unavailable the toggle is greyed out with an explanation, and a request that still asks for it is answered from the knowledge base with a notice. On a paid plan it switches on by itself. **Deep explain** always gives the thorough answer length, whichever level is chosen.
 
 ## Features and how they work
 

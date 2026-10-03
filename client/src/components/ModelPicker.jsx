@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckIcon, ChevronDown } from './Icons.jsx';
+import { CheckIcon } from './Icons.jsx';
 
-// Dropdown for choosing the answer level. `children` is what you click (the logo, or a small chip).
+// Dropdown for choosing the answer level. `children` is what you click (the lotus logo in the input box).
+// The list opens upward because the input box sits at the bottom of the screen.
 export default function ModelPicker({ tiers, value, onChange, children, label = 'Choose answer level' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -19,23 +20,24 @@ export default function ModelPicker({ tiers, value, onChange, children, label = 
     };
   }, [open]);
 
-  if (!tiers.length) return <div>{children}</div>; // not loaded yet: just show the logo
+  if (!tiers.length) return <div className="shrink-0">{children}</div>; // levels not loaded yet: just show the logo
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen(!open)}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={label}
-        className="w-full rounded-xl text-inherit transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold-400"
+        title={label}
+        className="flex items-center gap-1.5 rounded-xl px-1.5 py-1 text-inherit transition hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-gold-400"
       >
         {children}
       </button>
 
       {open && (
-        <ul role="listbox" aria-label={label} className="absolute left-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gold-500/40 bg-ink-800 p-1 shadow-2xl">
+        <ul role="listbox" aria-label={label} className="absolute bottom-full left-0 z-50 mb-3 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gold-500/40 bg-ink-800 p-1 text-left shadow-2xl">
           {tiers.map((t) => {
             const selected = t.id === value;
             return (
@@ -62,15 +64,5 @@ export default function ModelPicker({ tiers, value, onChange, children, label = 
         </ul>
       )}
     </div>
-  );
-}
-
-// The small "Sutra Lite" label shown under the logo / in the top bar.
-export function TierBadge({ tier }) {
-  if (!tier) return null;
-  return (
-    <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-gold-500/40 bg-ink-900/70 px-2.5 py-0.5 text-xs text-gold-200">
-      {tier.name} <ChevronDown width={12} height={12} />
-    </span>
   );
 }

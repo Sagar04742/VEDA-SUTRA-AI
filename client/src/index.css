@@ -61,3 +61,15 @@ body {
 .md th, .md td { border: 1px solid rgb(211 169 92 / 0.3); padding: 0.4em 0.7em; text-align: left; }
 .md th { background: rgb(211 169 92 / 0.12); }
 .md hr { border: 0; border-top: 1px solid rgb(255 255 255 / 0.12); margin: 1.2em 0; }
+
+/* Gentle fade-up when a section scrolls into view (home page). Respects "reduce motion". */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s ease, transform 0.7s ease; }
+.reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+
+/* Slow drift for the home page backdrop */
+@keyframes drift { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(-14px) rotate(6deg); } }
+.drift { animation: drift 9s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .drift { animation: none; } }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

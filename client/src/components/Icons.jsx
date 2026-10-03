@@ -31,3 +31,8 @@ export const MicIcon = make(<><rect x="9" y="3" width="6" height="11" rx="3" /><
 export const GlobeIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>);
 export const SparkIcon = make(<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" />);
 export const ClockIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>);
+export const UserIcon = make(<><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.400 3.600-7 8-7s8 2.600 8 7" /></>);
+export const HomeIcon = make(<path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10" />);
+export const FlameIcon = make(<path d="M12 3c1 4 5 5.500 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .500 1.500 1 2 2 2 0-3-1-5 1-8z" />);
+export const LockIcon = make(<><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>);
+export const ChartIcon = make(<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />);

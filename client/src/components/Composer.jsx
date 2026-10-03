@@ -1,17 +1,24 @@
 import { useEffect, useRef } from 'react';
-import { CloseIcon, GlobeIcon, LotusIcon, MicIcon, PaperclipIcon, SendIcon, SparkIcon, StopIcon } from './Icons.jsx';
+import { ChevronDown, CloseIcon, GlobeIcon, LotusIcon, MicIcon, PaperclipIcon, SendIcon, SparkIcon, StopIcon } from './Icons.jsx';
 import { VOICE_LANGUAGES } from '../hooks/useSpeech.js';
+import ModelPicker from './ModelPicker.jsx';
 import { MAX_IMAGES } from '../utils/image.js';
 
-function Toggle({ on, onClick, Icon, children, title }) {
+function Toggle({ on, onClick, Icon, children, title, disabled }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={on}
+      aria-pressed={on && !disabled}
+      aria-disabled={disabled || undefined}
+      disabled={disabled}
       title={title}
       className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition ${
-        on ? 'border-gold-300 bg-gold-500/25 text-gold-200' : 'border-white/10 bg-ink-900/70 text-parchment/60 hover:border-gold-500/40'
+        disabled
+          ? 'cursor-not-allowed border-white/5 bg-ink-900/40 text-parchment/30 line-through decoration-parchment/30'
+          : on
+            ? 'border-gold-300 bg-gold-500/25 text-gold-200'
+            : 'border-white/10 bg-ink-900/70 text-parchment/60 hover:border-gold-500/40'
       }`}
     >
       <Icon width={14} height={14} /> {children}
@@ -26,6 +33,7 @@ export default function Composer({
   images, onPickImages, onRemoveImage, imageError,
   options, onOptions,
   speech, voiceLang, onVoiceLang,
+  picker,
 }) {
   const ref = useRef(null);
   const fileRef = useRef(null);
@@ -51,7 +59,13 @@ export default function Composer({
     <div>
       {/* Tools row */}
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Toggle on={options.webSearch} onClick={() => onOptions({ ...options, webSearch: !options.webSearch })} Icon={GlobeIcon} title="Let the assistant search the web (answers are labelled 'From the web')">
+        <Toggle
+          on={options.webSearch}
+          disabled={!picker.capabilities.webSearch}
+          onClick={() => onOptions({ ...options, webSearch: !options.webSearch })}
+          Icon={GlobeIcon}
+          title={picker.capabilities.webSearch ? "Let the assistant search the web (answers are labelled 'From the web')" : "Web search isn't included in the current Gemini plan, so it is switched off"}
+        >
           Web search
         </Toggle>
         <Toggle on={options.deepExplain} onClick={() => onOptions({ ...options, deepExplain: !options.deepExplain })} Icon={SparkIcon} title="A longer, more thorough explanation with examples">
@@ -89,7 +103,12 @@ export default function Composer({
       {(imageError || speech.error) && <p role="status" className="mb-2 text-xs text-gold-300">{imageError || speech.error}</p>}
 
       <div className={`flex items-center gap-2 rounded-2xl border bg-ink-900/90 p-2 pl-4 backdrop-blur sm:gap-3 ${speech.listening ? 'border-gold-200 shadow-[0_0_0_3px_rgb(211_169_92/0.25)]' : 'border-gold-500/50'}`}>
-        <LotusIcon className="hidden shrink-0 text-gold-400 sm:block" width={28} height={28} />
+        {/* The lotus logo is the answer-level picker: click it to choose Sutra Lite, Plus or Pro. */}
+        <ModelPicker tiers={picker.tiers} value={picker.tier} onChange={picker.setTier} label="Choose answer level (Sutra Lite, Plus or Pro)">
+          <LotusIcon className="text-gold-400" width={28} height={28} />
+          <span className="hidden text-xs text-gold-200 sm:inline">{picker.current?.name}</span>
+          <ChevronDown className="text-parchment/50" width={14} height={14} />
+        </ModelPicker>
         <span className="hidden h-8 w-px bg-white/10 sm:block" />
         <textarea
           ref={ref}

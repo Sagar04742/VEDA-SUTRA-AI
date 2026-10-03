@@ -141,3 +141,80 @@ describe('GET /api/models', () => {
     expect((await request(app).get('/api/models')).status).toBe(401);
   });
 });
+
+describe('Deep explain', () => {
+  it('always gives the thorough length, even on the short Lite level', () => {
+    const p = buildSystemPrompt({ style: 'brief', deepExplain: true });
+    expect(p).toMatch(/thorough mode/);
+    expect(p).not.toMatch(/short mode/);
+    expect(p).toMatch(/DEEP EXPLAIN MODE/);
+    expect(buildSystemPrompt({ style: 'balanced', deepExplain: true })).not.toMatch(/balanced mode/);
+  });
+});
+
+describe('Google Search availability', () => {
+  const quotaZero = () => Object.assign(new Error(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'You exceeded your current quota' } })), { status: 429 });
+  const perMinute = () => Object.assign(new Error(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', details: [{ '@type': 'x.RetryInfo', retryDelay: '30s' }] } })), { status: 429 });
+  const service = (client) => createGeminiService({ model: 'm', client, retryDelayMs: 0 });
+  const ask = (svc, extra = {}) => svc.streamChat({ messages: [{ role: 'user', content: 'hi' }], signal: new AbortController().signal, ...extra });
+  const hasSearch = (r) => r.config?.tools?.some((t) => t.googleSearch);
+
+  function recorder(script) {
+    const requests = [];
+    return {
+      requests,
+      models: {
+        generateContentStream: async (req) => {
+          requests.push({ config: req.config });
+          const step = script[requests.length - 1] ?? script.at(-1);
+          return (async function* () {
+            if (step instanceof Error) throw step;
+            for (const c of step) yield { candidates: [{ content: { parts: [c] } }] };
+          })();
+        },
+        generateContent: async (req) => {
+          requests.push({ config: req.config, probe: true });
+          const step = script[requests.length - 1] ?? script.at(-1);
+          if (step instanceof Error) throw step;
+          return { text: 'OK' };
+        },
+      },
+    };
+  }
+
+  it('after one refusal it stops trying search, says so, and reports it as unavailable', async () => {
+    const client = recorder([quotaZero(), [{ text: 'from the knowledge base' }], [{ text: 'second answer' }]]);
+    const svc = service(client);
+    expect(svc.capabilities().webSearch).toBe(true); // unknown until tried
+    const notices = [];
+    await ask(svc, { options: { webSearch: true }, onNotice: (n) => notices.push(n) });
+    expect(svc.capabilities().webSearch).toBe(false);
+    expect(notices).toHaveLength(1);
+
+    const second = [];
+    await ask(svc, { options: { webSearch: true }, onNotice: (n) => second.push(n) });
+    expect(hasSearch(client.requests.at(-1))).toBe(false); // did not even attempt it
+    expect(client.requests).toHaveLength(3); // refused, answered, answered: no wasted request
+    expect(second[0]).toMatch(/Web search is not available/);
+  });
+
+  it('a per-minute limit is not mistaken for "search is not available"', async () => {
+    const svc = service(recorder([perMinute(), [{ text: 'ok' }]]));
+    await ask(svc, { options: { webSearch: true } });
+    expect(svc.capabilities().webSearch).toBe(true);
+  });
+
+  it('the start-up probe blocks on quota-0 / refusal and unblocks when search works', async () => {
+    const refused = service(recorder([quotaZero()]));
+    await refused.probeWebSearch();
+    expect(refused.capabilities().webSearch).toBe(false);
+
+    const busy = service(recorder([perMinute()]));
+    await busy.probeWebSearch();
+    expect(busy.capabilities().webSearch).toBe(true);
+
+    const ok = service(recorder([[{ text: 'OK' }]]));
+    await ok.probeWebSearch();
+    expect(ok.capabilities().webSearch).toBe(true);
+  });
+});

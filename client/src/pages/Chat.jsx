@@ -5,8 +5,8 @@ import { useChats } from '../hooks/useChats.js';
 import { useConversation } from '../hooks/useConversation.js';
 import { useSpeech } from '../hooks/useSpeech.js';
 import { useModelTier } from '../hooks/useModelTier.js';
-import ModelPicker, { TierBadge } from '../components/ModelPicker.jsx';
 import { MAX_IMAGES, prepareImage } from '../utils/image.js';
+import { randomPrompt } from '../utils/prompts.js';
 import Sidebar, { TOPICS } from '../components/Sidebar.jsx';
 import Composer from '../components/Composer.jsx';
 import MessageBubble from '../components/MessageBubble.jsx';
@@ -38,9 +38,10 @@ const store = (key, value) => {
 export default function Chat() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const routeId = useMatch('/c/:id')?.params.id;
+  const routeId = useMatch('/chat/c/:id')?.params.id;
   const list = useChats();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // the slide-out drawer on phones
+  const [collapsed, setCollapsed] = useState(() => stored('sidebarCollapsed', '0') === '1'); // hidden on larger screens
   const [text, setText] = useState('');
   const [images, setImages] = useState([]);
   const [imageError, setImageError] = useState('');
@@ -51,11 +52,11 @@ export default function Chat() {
   const conv = useConversation({
     onChatCreated: useCallback((chat) => {
       list.upsertTop(chat);
-      navigate(`/c/${chat.id}`, { replace: true }); // conv already knows this id, so it will not reload
+      navigate(`/chat/c/${chat.id}`, { replace: true }); // conv already knows this id, so it will not reload
     }, [list.upsertTop, navigate]), // eslint-disable-line react-hooks/exhaustive-deps
     onChatDiscarded: useCallback((id) => {
       list.dropLocal(id);
-      navigate('/', { replace: true });
+      navigate('/chat', { replace: true });
     }, [list.dropLocal, navigate]), // eslint-disable-line react-hooks/exhaustive-deps
     onTitle: list.setTitle,
     onActivity: useCallback((id) => list.upsertTop({ id, updatedAt: new Date().toISOString() }), [list.upsertTop]), // eslint-disable-line react-hooks/exhaustive-deps
@@ -70,7 +71,7 @@ export default function Chat() {
       return;
     }
     if (routeId !== chatIdRef.current) {
-      conv.load(routeId).then((ok) => ok || navigate('/', { replace: true }));
+      conv.load(routeId).then((ok) => ok || navigate('/chat', { replace: true }));
     }
   }, [routeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -85,6 +86,16 @@ export default function Chat() {
     const el = scrollRef.current;
     if (el && stick.current) el.scrollTo({ top: el.scrollHeight });
   }, [messages, error]);
+
+  // After an answer that used Web search, ask the server again whether it is available (it may have just found out it is not).
+  const usedSearch = useRef(false);
+  useEffect(() => {
+    if (!streaming && usedSearch.current) {
+      usedSearch.current = false;
+      picker.refresh();
+    }
+  }, [streaming]); // eslint-disable-line react-hooks/exhaustive-deps
+  const webSearchOn = options.webSearch && picker.capabilities.webSearch;
 
   async function pickImages(files) {
     setImageError('');
@@ -105,23 +116,43 @@ export default function Chat() {
     if ((!content.trim() && !images.length) || streaming) return;
     speech.stop();
     stick.current = true;
-    conv.send({ content, images, ...options, tier: picker.tier });
+    usedSearch.current = webSearchOn;
+    conv.send({ content, images, ...options, webSearch: webSearchOn, tier: picker.tier });
     setText('');
     setImages([]);
     setImageError('');
   }
 
   function newChat() {
-    conv.reset(); // also needed when the URL is already "/"
+    conv.reset(); // also needed when the URL is already "/chat"
     setText('');
     setImages([]);
     setSidebarOpen(false);
-    navigate('/');
+    navigate('/chat');
   }
 
   async function remove(id) {
     await list.remove(id);
-    if (id === chatIdRef.current) navigate('/');
+    if (id === chatIdRef.current) navigate('/chat');
+  }
+
+  // Closing hides the drawer on phones and collapses the sidebar on larger screens (remembered).
+  function closeSidebar() {
+    setSidebarOpen(false);
+    setCollapsed(true);
+    store('sidebarCollapsed', '1');
+  }
+  function openSidebar() {
+    setSidebarOpen(true);
+    setCollapsed(false);
+    store('sidebarCollapsed', '0');
+  }
+
+  // A topic button/card puts a different starter question in the box every time it is clicked.
+  function fillTopic(topicId) {
+    setText(randomPrompt(topicId));
+    setSidebarOpen(false);
+    if (routeId) navigate('/chat');
   }
 
   const changeVoiceLang = (code) => {
@@ -136,15 +167,11 @@ export default function Chat() {
     <div className="flex h-dvh overflow-hidden">
       <Sidebar
         open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
+        collapsed={collapsed}
+        onClose={closeSidebar}
         onNewChat={newChat}
-        onTopic={(prompt) => {
-          setText(prompt);
-          setSidebarOpen(false);
-          if (routeId) navigate('/');
-        }}
+        onTopic={fillTopic}
         chatList={list}
-        picker={picker}
         activeId={routeId}
         onRename={list.rename}
         onDelete={remove}
@@ -153,17 +180,11 @@ export default function Chat() {
       <main className="relative flex min-w-0 flex-1 flex-col">
         {empty && <HeroBackdrop />}
 
-        {/* Phone top bar: the menu button, and the answer level without opening the menu */}
-        <div className="relative z-20 flex items-center gap-2 p-3 md:hidden">
-          <button onClick={() => setSidebarOpen(true)} aria-label="Open sidebar" className="rounded-lg border border-white/10 bg-ink-900/70 p-2 text-gold-300">
+        {/* Menu button: always on phones; on larger screens only after the sidebar was closed. */}
+        <div className={`relative z-20 p-3 ${collapsed ? '' : 'md:hidden'}`}>
+          <button onClick={openSidebar} aria-label="Open sidebar" title="Open sidebar" className="rounded-lg border border-white/10 bg-ink-900/70 p-2 text-gold-300 hover:border-gold-500/50">
             <MenuIcon />
           </button>
-          <ModelPicker tiers={picker.tiers} value={picker.tier} onChange={picker.setTier} label="Choose answer level">
-            <span className="flex items-center gap-2 px-2 py-1">
-              <span className="font-serif text-lg text-gold-200">VedaSutra</span>
-              <TierBadge tier={picker.current} />
-            </span>
-          </ModelPicker>
         </div>
 
         <div ref={scrollRef} onScroll={onScroll} className={`relative z-10 flex flex-1 flex-col overflow-y-auto px-4 ${empty ? 'items-center text-center' : ''}`}>
@@ -174,10 +195,11 @@ export default function Chat() {
               <Ornament />
 
               <div className="mb-4 mt-2 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
-                {CARDS.map(({ id, title, Icon, blurb, prompt }) => (
+                {CARDS.map(({ id, title, Icon, blurb }) => (
                   <button
                     key={id}
-                    onClick={() => setText(prompt)}
+                    onClick={() => fillTopic(id)}
+                    title="Click again for a different question"
                     className="group relative flex items-start gap-4 rounded-2xl border border-gold-500/40 bg-ink-900/70 p-5 text-left backdrop-blur transition hover:border-gold-300/70 hover:bg-ink-800/80"
                   >
                     <Icon className="mt-1 shrink-0 text-gold-300" width={38} height={38} />
@@ -234,11 +256,12 @@ export default function Chat() {
               onPickImages={pickImages}
               onRemoveImage={(i) => setImages((cur) => cur.filter((_, j) => j !== i))}
               imageError={imageError}
-              options={options}
+              options={{ ...options, webSearch: webSearchOn }}
               onOptions={setOptions}
               speech={speech}
               voiceLang={voiceLang}
               onVoiceLang={changeVoiceLang}
+              picker={picker}
             />
             <p className="mt-2 text-center text-xs text-parchment/40">VedaSutra can make mistakes. Check important information.</p>
           </div>

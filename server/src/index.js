@@ -24,5 +24,6 @@ const aiProblem = ai.configError();
 if (aiProblem) console.warn(`! ${aiProblem} Login works, but chat answers are disabled until it is set.`);
 if (!env.mistral.apiKey || !env.mistral.model) console.warn('! Mistral is not configured (MISTRAL_API_KEY / MISTRAL_MODEL): chat titles will use the first 40 characters of the message.');
 
+ai.probeWebSearch?.(); // in the background: finds out whether this key can use Google Search
 const app = createApp({ ai });
 app.listen(env.port, () => console.log(`Server listening on :${env.port} (${env.nodeEnv})`));

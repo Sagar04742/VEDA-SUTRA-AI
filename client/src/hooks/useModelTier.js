@@ -10,21 +10,30 @@ const read = () => {
   }
 };
 
-// The answer level picked in the model picker. Remembered in this browser; "lite" is the default.
+// The answer level picked in the model picker (remembered in this browser; "lite" is the default),
+// plus what the server says it can do right now (for example whether Web search is available).
 export function useModelTier() {
   const [tiers, setTiers] = useState([]);
   const [tier, setTierState] = useState(read() || 'lite');
+  const [capabilities, setCapabilities] = useState({ webSearch: true });
+
+  const refresh = useCallback(
+    () =>
+      modelsApi
+        .list()
+        .then(({ tiers: list, default: def, capabilities: caps }) => {
+          setTiers(list);
+          if (caps) setCapabilities(caps);
+          // Forget a saved level that no longer exists.
+          setTierState((cur) => (list.some((t) => t.id === cur) ? cur : def));
+        })
+        .catch(() => {}),
+    []
+  );
 
   useEffect(() => {
-    modelsApi
-      .list()
-      .then(({ tiers: list, default: def }) => {
-        setTiers(list);
-        // Forget a saved level that no longer exists.
-        setTierState((cur) => (list.some((t) => t.id === cur) ? cur : def));
-      })
-      .catch(() => {});
-  }, []);
+    refresh();
+  }, [refresh]);
 
   const setTier = useCallback((id) => {
     setTierState(id);
@@ -35,5 +44,5 @@ export function useModelTier() {
     }
   }, []);
 
-  return { tiers, tier, setTier, current: tiers.find((t) => t.id === tier) };
+  return { tiers, tier, setTier, current: tiers.find((t) => t.id === tier), capabilities, refresh };
 }

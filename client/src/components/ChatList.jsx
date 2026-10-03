@@ -37,7 +37,7 @@ export default function ChatList({ chats, loading, activeId, onRename, onDelete,
               </div>
             ) : (
               <>
-                <Link to={`/c/${chat.id}`} onClick={onNavigate} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-sm text-parchment/90" title={chat.title}>
+                <Link to={`/chat/c/${chat.id}`} onClick={onNavigate} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-sm text-parchment/90" title={chat.title}>
                   <ChatIcon className="shrink-0 text-gold-400/70" width={18} height={18} />
                   <span className="truncate">{chat.title}</span>
                 </Link>

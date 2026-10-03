@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import Loader from './Loader.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { errorMessage } from '../api/client.js';
 import Brand from './Brand.jsx';
@@ -8,13 +9,16 @@ import { HeroBackdrop } from './Hero.jsx';
 // Shared form for the Login and Signup pages.
 export default function AuthForm({ mode }) {
   const isSignup = mode === 'signup';
-  const { user, login, signup } = useAuth();
+  const { user, loading, login, signup } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from ?? '/chat'; // where the visitor was heading before being asked to log in
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to="/" replace />;
+  if (loading) return <Loader />;
+  if (user) return <Navigate to={from} replace />;
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -24,7 +28,7 @@ export default function AuthForm({ mode }) {
     setBusy(true);
     try {
       await (isSignup ? signup(form) : login({ email: form.email, password: form.password }));
-      navigate('/', { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -39,7 +43,9 @@ export default function AuthForm({ mode }) {
     <main className="relative grid min-h-dvh place-items-center px-4 py-8">
       <HeroBackdrop />
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-gold-500/40 bg-ink-900/85 p-6 shadow-2xl backdrop-blur sm:p-8">
-        <Brand size="lg" />
+        <Link to="/" aria-label="Back to the VedaSutra home page" className="block rounded-xl transition hover:opacity-90">
+          <Brand size="lg" />
+        </Link>
         <h1 className="mb-5 mt-4 text-center font-serif text-2xl text-parchment">
           {isSignup ? 'Begin your journey' : 'Welcome back'}
         </h1>
@@ -85,7 +91,7 @@ export default function AuthForm({ mode }) {
 
         <p className="mt-5 text-center text-sm text-parchment/70">
           {isSignup ? 'Already have an account? ' : 'New here? '}
-          <Link className="font-medium text-gold-300 underline underline-offset-2" to={isSignup ? '/login' : '/signup'}>
+          <Link className="font-medium text-gold-300 underline underline-offset-2" to={isSignup ? '/login' : '/signup'} state={location.state}>
             {isSignup ? 'Log in' : 'Create an account'}
           </Link>
         </p>

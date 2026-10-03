@@ -25,6 +25,8 @@ export function createAi() {
   return {
     configError: () => gemini.configError(),
     tiers: () => tiers.map(publicTier),
+    capabilities: () => (mock ? { webSearch: true } : gemini.capabilities()),
+    probeWebSearch: () => (mock || gemini.configError() ? undefined : gemini.probeWebSearch()),
     // options.tier picks the level in the model picker: which models to try, and how long the answer should be.
     streamChat: ({ options = {}, ...args }) => {
       const tier = tiers.find((t) => t.id === (options.tier ?? DEFAULT_TIER)) ?? tiers[0];

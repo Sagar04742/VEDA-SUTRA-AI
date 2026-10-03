@@ -9,6 +9,7 @@ import { env } from '../config/env.js';
 import authRoutes from '../routes/auth.js';
 import { chatRoutes } from '../routes/chats.js';
 import { modelRoutes } from '../routes/models.js';
+import { profileRoutes, publicStatsRoutes } from '../routes/profile.js';
 import { createAi } from '../services/ai.js';
 import { errorHandler, notFound } from '../middleware/errorHandler.js';
 
@@ -35,6 +36,8 @@ export function createApp(deps = {}) {
   app.use('/api/auth', authRoutes);
   app.use('/api/chats', chatRoutes(ai));
   app.use('/api/models', modelRoutes(ai));
+  app.use('/api/profile', profileRoutes());
+  app.use('/api/stats', publicStatsRoutes());
   app.use('/api', notFound);
 
   // Production: serve the built React app from the same origin (cookies then just work).

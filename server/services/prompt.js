@@ -76,5 +76,6 @@ ANSWER LENGTH (thorough mode)
 };
 
 export function buildSystemPrompt({ webSearch = false, deepExplain = false, style } = {}) {
-  return SYSTEM_PROMPT + (STYLES[style] ?? '') + (deepExplain ? DEEP_EXPLAIN : '') + (webSearch ? WEB_SEARCH : '');
+  // Deep explain always gets the thorough length, whichever level (Lite/Plus/Pro) is chosen.
+  return SYSTEM_PROMPT + (STYLES[deepExplain ? 'thorough' : style] ?? '') + (deepExplain ? DEEP_EXPLAIN : '') + (webSearch ? WEB_SEARCH : '');
 }

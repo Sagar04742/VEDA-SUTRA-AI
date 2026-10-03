@@ -3,6 +3,7 @@ import { buildSystemPrompt } from './prompt.js';
 import { executeTool, isSolverTool, toolDeclarations } from './tools.js';
 import { humanDuration, parseQuotaError } from '../utils/quota.js';
 
+const SEARCH_BLOCK_MS = 30 * 60 * 1000;
 const MAX_TOOL_ROUNDS = 5;
 const DEEP_TOOL_ROUNDS = 8;
 
@@ -13,6 +14,8 @@ const toContents = (messages) =>
     if (m.content) parts.push({ text: m.content });
     return { role: m.role === 'assistant' ? 'model' : 'user', parts };
   });
+
+const SEARCH_UNAVAILABLE = 'Web search is not available with your current Gemini plan or model, so this answer uses the knowledge base only.';
 
 // Errors worth answering again on the next model: rate limits, a busy model, or a model that is gone.
 const isSwitchable = (err) => parseQuotaError(err).rateLimited || [500, 503, 404].includes(err?.status ?? err?.code);
@@ -40,6 +43,10 @@ export function describeAiError(err) {
 export function createGeminiService({ apiKey, model, fallbackModel, client, retryDelayMs = 1200 } = {}) {
   let sdk = client;
   const getClient = () => (sdk ??= new GoogleGenAI({ apiKey }));
+  // Google Search is not part of every plan. Once it has been refused we stop trying for a while (and the UI greys the toggle).
+  const search = { blockedUntil: 0 };
+  const searchBlocked = () => Date.now() < search.blockedUntil;
+  const blockSearch = () => (search.blockedUntil = Date.now() + SEARCH_BLOCK_MS);
 
   return {
     configError() {
@@ -47,6 +54,21 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
       if (!apiKey) return 'Gemini is not configured: set GEMINI_API_KEY in server/.env.';
       if (!model) return 'Gemini is not configured: set GEMINI_MODEL in server/.env.';
       return null;
+    },
+
+    // What this key can do right now (shown by the UI).
+    capabilities: () => ({ webSearch: !searchBlocked() }),
+
+    // One tiny request at start-up so the Web search toggle is correct before anyone clicks it.
+    async probeWebSearch() {
+      try {
+        await getClient().models.generateContent({ model, contents: 'Reply OK', config: { tools: [{ googleSearch: {} }], maxOutputTokens: 5 } });
+        search.blockedUntil = 0;
+      } catch (err) {
+        const status = err?.status ?? err?.code;
+        // A real per-minute limit says how long to wait; "quota 0" or a plain refusal does not.
+        if ([400, 403].includes(status) || (status === 429 && parseQuotaError(err).retryAfterSeconds == null)) blockSearch();
+      }
     },
 
     // Streams an answer. messages = full conversation (already trimmed, ending with the new user turn).
@@ -78,7 +100,8 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
     const maxRounds = options.deepExplain ? DEEP_TOOL_ROUNDS : MAX_TOOL_ROUNDS;
     const solver = [];
     const sources = new Map();
-    let useSearch = Boolean(options.webSearch);
+    let useSearch = Boolean(options.webSearch) && !searchBlocked();
+    if (options.webSearch && !useSearch) onNotice(SEARCH_UNAVAILABLE);
     let text = '';
     const result = (aborted) => ({ text, solver, sources: [...sources.values()], aborted });
 
@@ -133,7 +156,8 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
           // forbidden, or "quota 0" on free keys): carry on without it, and say so.
           if (useSearch && useTools && !roundHasText && [400, 403, 429].includes(status)) {
             useSearch = false;
-            onNotice('Web search is not available with your current Gemini plan or model, so this answer uses the knowledge base only.');
+            if (status !== 429 || parseQuotaError(err).retryAfterSeconds == null) blockSearch();
+            onNotice(SEARCH_UNAVAILABLE);
             continue;
           }
           // A busy model (500/503) is usually back within a second: retry once before any text was sent.
