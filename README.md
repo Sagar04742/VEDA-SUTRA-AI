@@ -37,10 +37,10 @@ npm install                      # installs client + server (npm workspaces)
 cp .env.example server/.env      # then edit server/.env (see above)
 docker compose up -d             # local MongoDB (skip if you use Atlas)
 npm run ingest                   # load data/raw into the knowledge base
-npm run dev                      # API on :5000, client on :5173
+npm run dev                      # API on :PORT (11111), web app on the CLIENT_URL port (8888)
 ```
 
-Open http://localhost:5173, sign up, and start chatting.
+Open http://localhost:8888, sign up, and start chatting.
 
 Then confirm everything works with your real keys:
 
