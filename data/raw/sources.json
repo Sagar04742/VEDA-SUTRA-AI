@@ -1,0 +1,9 @@
+{
+  "_comment": "Per-file defaults used by data/ingest.js for files that do not carry their own metadata. provenance must be verified_math | traditional_text | interpretation.",
+  "Vedic Mathematics Application Datasets.pdf": {
+    "source": "Vedic Mathematics Application Datasets (research survey PDF supplied by the project owner; it summarises findings reported in the papers it cites)",
+    "provenance": "interpretation",
+    "category": "research",
+    "tags": ["research", "survey", "vedic math", "vedic maths", "vedic mathematics"]
+  }
+}

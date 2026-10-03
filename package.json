@@ -10,7 +10,7 @@
     "dev": "concurrently -n server,client -c yellow,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
     "test": "npm test -w server",
     "build": "npm run build -w client",
-    "ingest": "npm run ingest -w server"
+    "ingest": "node --env-file=server/.env data/ingest.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.4"
