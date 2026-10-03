@@ -24,6 +24,7 @@ export const StopIcon = make(<rect x="6" y="6" width="12" height="12" rx="2" fil
 export const CopyIcon = make(<><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></>);
 export const CheckIcon = make(<path d="M5 12.500l4.500 4.500L19 7.500" />);
 export const RetryIcon = make(<path d="M20 11a8 8 0 1 0-2.300 5.700M20 5v6h-6" />);
+export const ChevronDown = make(<path d="M6 9l6 6 6-6" />);
 export const CloseIcon = make(<path d="M6 6l12 12M18 6L6 18" />);
 export const PaperclipIcon = make(<path d="M21 11.500l-8.500 8.500a5 5 0 0 1-7-7l9-9a3.500 3.500 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8" />);
 export const MicIcon = make(<><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>);

@@ -13,6 +13,7 @@ import { decodeImages, MAX_IMAGES_PER_MESSAGE } from '../utils/images.js';
 import { openSse } from '../utils/sse.js';
 import { describeAiError } from '../services/gemini.js';
 import { attachImages } from '../services/attachments.js';
+import { DEFAULT_TIER, TIER_IDS } from '../config/tiers.js';
 
 const imageSchema = z.object({ mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']), data: z.string().min(16) });
 const messageSchema = z
@@ -21,6 +22,7 @@ const messageSchema = z
     images: z.array(imageSchema).max(MAX_IMAGES_PER_MESSAGE, `You can attach up to ${MAX_IMAGES_PER_MESSAGE} images`).default([]),
     webSearch: z.boolean().default(false),
     deepExplain: z.boolean().default(false),
+    tier: z.enum(TIER_IDS).default(DEFAULT_TIER),
   })
   .refine((b) => b.content || b.images.length, { message: 'Write a message or attach an image' });
 const renameSchema = z.object({ title: z.string().trim().min(1, 'Title is required').max(80, 'Title is too long') });
@@ -121,7 +123,7 @@ export function chatRoutes(ai) {
       const chatKey = String(chat._id);
       if (answering.has(chatKey)) throw new HttpError(409, 'Still answering your previous message in this chat. Please wait a moment.');
 
-      const { content, images, webSearch, deepExplain } = req.body;
+      const { content, images, webSearch, deepExplain, tier } = req.body;
       const decoded = decodeImages(images); // validates type, size and file signature
       const isFirstMessage = chat.messages.length === 0;
       const prior = chat.messages.map((m) => ({ role: m.role, content: m.content, imageIds: (m.images ?? []).map((i) => i.imageId) }));
@@ -170,7 +172,7 @@ export function chatRoutes(ai) {
             result = await ai.streamChat({
               messages,
               signal: ac.signal,
-              options: { webSearch, deepExplain },
+              options: { webSearch, deepExplain, tier },
               toolContext: { previousUserMessages },
               onToken: (t) => sse.send('token', { text: t }),
               onSolver: (s) => sse.send('solver', s),

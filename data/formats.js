@@ -13,7 +13,7 @@ function entry(over) {
 function provenanceFromSourceType(types) {
   const all = types.map((t) => t.toLowerCase());
   if (all.length && all.every((t) => /arithmetic independently verified|exact arithmetic/.test(t))) return 'verified_math';
-  if (all.length && all.every((t) => /primary[ -]text/.test(t))) return 'traditional_text';
+  if (all.length && all.every((t) => /primary[ -]text|traditional/.test(t))) return 'traditional_text';
   return 'interpretation';
 }
 
@@ -167,4 +167,79 @@ export function parseQaRows(rows, file) {
         sourceFile: file,
       });
     });
+}
+
+// ---------------------------------------------------------------------------------------------
+// "Ancient Indian Science detailed" dataset: records like
+//   AIS-00005 | Astronomy | Nakshatra
+//   Q: ...  A: ...  Elaboration: ...  Source: ...  Type: primary text | Confidence: High
+// 1,500 records repeat only ~31 facts under many question phrasings, with AI-training boilerplate sentences
+// ("The model should preserve provenance...") appended to some answers. They are merged per topic and the
+// boilerplate is dropped. "Dataset Methodology" records are rules for the assistant, not subject knowledge:
+// they live in the system prompt (services/prompt.js), not in the knowledge base.
+// ---------------------------------------------------------------------------------------------
+const META_SENTENCE = /\b(the model should|an ai model|ai model|training data|teach the model)\b/i;
+const TEMPLATE_QUESTION = /(ai model|historically careful|in simple words|important in the history|evidence or source is associated|training-friendly)/i;
+
+function sentences(text) {
+  return clean(text).match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
+}
+
+export function parseAisDetailed(lines, file) {
+  const recs = [];
+  let cur = null;
+  let field = null;
+  for (const { text } of lines) {
+    if (!text) continue;
+    const head = text.match(/^(AIS-\d+) \| ([^|]+?) \| (.+)$/);
+    if (head) {
+      cur = { domain: head[2].trim(), topic: head[3].trim(), Q: '', A: '', Elaboration: '', Source: '', Type: '' };
+      recs.push(cur);
+      field = null;
+      continue;
+    }
+    if (!cur) continue;
+    const f = text.match(/^(Q|A|Elaboration|Source):\s*(.*)$/);
+    if (f) [field, cur[f[1]]] = [f[1], f[2]];
+    else if (/^Type:/.test(text)) {
+      cur.Type = (text.match(/^Type:\s*(.*?)\s*(?:\|\s*Confidence:.*)?$/) ?? [])[1] ?? '';
+      field = null;
+    } else if (field) cur[field] = `${cur[field]} ${text}`.trim();
+  }
+
+  const groups = new Map();
+  for (const r of recs) {
+    if (/^Dataset Methodology$/i.test(r.domain)) continue;
+    const key = `${r.domain}|${r.topic}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+
+  const entries = [];
+  for (const [, rs] of groups) {
+    const { domain, topic } = rs[0];
+    // Keep each distinct real sentence once, in order; drop training-meta and the repeated significance boilerplate.
+    const facts = [];
+    for (const s of rs.flatMap((r) => [...sentences(r.A), ...sentences(r.Elaboration)])) {
+      if (META_SENTENCE.test(s) || /^Its significance should be interpreted/i.test(s)) continue;
+      if (!facts.includes(s)) facts.push(s);
+    }
+    const questions = [...new Set(rs.map((r) => clean(r.Q)).filter((q) => q && !TEMPLATE_QUESTION.test(q)))];
+    const sources = [...new Set(rs.map((r) => clean(r.Source)).filter(Boolean))];
+    const types = [...new Set(rs.map((r) => clean(r.Type)).filter(Boolean))];
+    const medicine = /^Medicine$/i.test(domain);
+    entries.push(
+      entry({
+        name: topic,
+        meaning: clean(`${facts.join(' ')}${medicine ? ' This is historical information only, not medical advice or proof of safety or efficacy.' : ''}`),
+        category: slug(domain),
+        whenToUse: questions.length ? `Answers questions such as: ${questions.slice(0, 4).map((q) => `"${q}"`).join('; ')}`.slice(0, 400) : '',
+        tags: [...new Set([topic, domain, 'ancient indian science', 'history', ...(medicine ? ['ayurveda', 'medicine'] : [])].map((t) => t.toLowerCase()))],
+        source: `${sources.join('; ')} (Ancient Indian Science dataset: ${types.join(' / ') || 'historical scholarship'})`,
+        provenance: provenanceFromSourceType(types),
+        sourceFile: file,
+      })
+    );
+  }
+  return entries;
 }

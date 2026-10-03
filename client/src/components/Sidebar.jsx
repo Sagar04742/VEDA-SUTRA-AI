@@ -1,4 +1,5 @@
 import Brand from './Brand.jsx';
+import ModelPicker, { TierBadge } from './ModelPicker.jsx';
 import UserMenu from './UserMenu.jsx';
 import ChatList from './ChatList.jsx';
 import { ChevronLeft, ChevronRight, PlusIcon, RootIcon, TempleIcon } from './Icons.jsx';
@@ -9,7 +10,7 @@ export const TOPICS = [
   { id: 'science', title: 'Ancient Science', Icon: TempleIcon, prompt: 'What is the concept of zero in ancient India?' },
 ];
 
-export default function Sidebar({ open, onClose, onNewChat, onTopic, chatList, activeId, onRename, onDelete }) {
+export default function Sidebar({ open, onClose, onNewChat, onTopic, chatList, activeId, onRename, onDelete, picker }) {
   return (
     <>
       {/* Mobile backdrop */}
@@ -20,7 +21,12 @@ export default function Sidebar({ open, onClose, onNewChat, onTopic, chatList, a
         }`}
       >
         <div className="relative pt-2">
-          <Brand />
+          <ModelPicker tiers={picker.tiers} value={picker.tier} onChange={picker.setTier} label="Choose answer level (click the logo)">
+            <div className="px-2 py-2">
+              <Brand />
+              <div className="text-center"><TierBadge tier={picker.current} /></div>
+            </div>
+          </ModelPicker>
           <button onClick={onClose} aria-label="Close sidebar" className="absolute right-0 top-2 text-parchment/60 hover:text-gold-300 md:hidden">
             <ChevronLeft />
           </button>

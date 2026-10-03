@@ -88,7 +88,7 @@ export function useConversation({ onChatCreated, onChatDiscarded, onTitle, onAct
       try {
         await streamMessage(
           id,
-          { content, images: images.map(({ mimeType, data }) => ({ mimeType, data })), webSearch: Boolean(payload.webSearch), deepExplain: Boolean(payload.deepExplain) },
+          { content, images: images.map(({ mimeType, data }) => ({ mimeType, data })), webSearch: Boolean(payload.webSearch), deepExplain: Boolean(payload.deepExplain), tier: payload.tier || 'lite' },
           {
             signal: ac.signal,
             onEvent: (event, data) => {

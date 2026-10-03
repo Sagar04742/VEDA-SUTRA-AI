@@ -158,6 +158,23 @@ describe('ingest: the supplied project datasets', () => {
     expect(speed.source).toMatch(/Historians of science/);
   });
 
+  it('merges the 1,500-record science dataset into its 31 distinct topics, without training boilerplate', () => {
+    const rows = from('Ancient_Indian_Science_Detailed_Training_Dataset.pdf');
+    expect(rows).toHaveLength(31);
+    for (const e of rows) {
+      expect(e.meaning).not.toMatch(/The model should|AI model|Its significance should be interpreted/);
+      expect(e.source).toMatch(/Ancient Indian Science dataset/);
+      expect(['traditional_text', 'interpretation']).toContain(e.provenance);
+    }
+    expect(new Set(rows.map((e) => e.name)).size).toBe(31);
+    expect(rows.some((e) => /Methodology|Source criticism|Anachronism/i.test(e.name))).toBe(false); // rules live in the prompt
+    expect(rows.find((e) => e.name === 'Nakshatra').meaning).toMatch(/27 divisions/);
+    // Every medicine entry carries the safety caution.
+    const medicine = rows.filter((e) => e.category === 'medicine');
+    expect(medicine.length).toBeGreaterThanOrEqual(5);
+    for (const e of medicine) expect(e.meaning).toMatch(/not medical advice/);
+  });
+
   it('skips the duplicate files listed in sources.json', async () => {
     const sidecar = await loadSidecar();
     expect(await entriesForFile('questions_extended.pdf', Buffer.from('anything'), sidecar)).toEqual([]);
@@ -220,6 +237,16 @@ describe('retrieval (searchKnowledge)', () => {
     expect(lila.join(' | ')).toMatch(/Bhaskara II/);
     const sulba = await searchKnowledge('Sulba Sutras fire altars geometry', { limit: 3 });
     expect(sulba.map((r) => r.name).join(' | ')).toMatch(/Sulba/i);
+  });
+
+  it('finds the new ancient-science topics', async () => {
+    expect((await top('What are nakshatras?'))[0]).toBe('Nakshatra');
+    expect((await top('Tell me about the Delhi Iron Pillar'))[0]).toBe('Delhi Iron Pillar');
+    expect((await top('What is Sushruta Samhita known for?'))[0]).toBe('Sushruta Samhita');
+    expect((await top('What are bhasmas in Ayurveda?', 3)).join(' | ')).toMatch(/Bhasma/);
+    expect((await top('Explain Vedanga Jyotisha'))[0]).toBe('Vedanga Jyotisha');
+    expect((await top('How did Indian astronomers predict eclipses?', 4)).join(' | ')).toMatch(/Eclipses/);
+    expect((await top('zinc smelting in ancient India', 3)).join(' | ')).toMatch(/Zinc/);
   });
 
   it('returns nothing for unrelated questions instead of guessing', async () => {

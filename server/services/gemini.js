@@ -14,6 +14,9 @@ const toContents = (messages) =>
     return { role: m.role === 'assistant' ? 'model' : 'user', parts };
   });
 
+// Errors worth answering again on the next model: rate limits, a busy model, or a model that is gone.
+const isSwitchable = (err) => parseQuotaError(err).rateLimited || [500, 503, 404].includes(err?.status ?? err?.code);
+
 // Friendly, non-leaky error info for the user: { message, code, retryAfterSeconds }.
 export function describeAiError(err) {
   const quota = parseQuotaError(err);
@@ -51,16 +54,20 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
     // options: { webSearch, deepExplain }. Returns { text, solver, sources, aborted }.
     // If the main model is rate limited before anything was shown, the whole answer restarts on fallbackModel.
     async streamChat(args) {
+      // args.models = [{ id, label }] lets the caller choose a chain (the model picker does); otherwise model, then fallbackModel.
+      const chain = args.models?.length ? args.models : [{ id: model }, ...(fallbackModel ? [{ id: fallbackModel }] : [])];
       const shared = { shownText: false, shownSolver: new Set() };
-      try {
-        return await runOnce(model, args, shared);
-      } catch (err) {
-        const limited = parseQuotaError(err).rateLimited;
-        if (fallbackModel && fallbackModel !== model && limited && !shared.shownText && !args.signal?.aborted) {
-          console.warn(`Model ${model} is rate limited; answering with ${fallbackModel} instead.`);
-          return runOnce(fallbackModel, args, shared);
+      for (let i = 0; i < chain.length; i++) {
+        try {
+          return await runOnce(chain[i].id, args, shared);
+        } catch (err) {
+          const next = chain[i + 1];
+          if (!next || !isSwitchable(err) || shared.shownText || args.signal?.aborted) throw err;
+          console.warn(`Model ${chain[i].id} unavailable (${err?.status ?? 'error'}); answering with ${next.id} instead.`);
+          if (chain[i].label && next.label && chain[i].label !== next.label) {
+            args.onNotice?.(`${chain[i].label} is busy or at its free usage limit right now, so this answer came from ${next.label}.`);
+          }
         }
-        throw err;
       }
     },
   };

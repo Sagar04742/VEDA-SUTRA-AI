@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import { env } from '../config/env.js';
 import authRoutes from '../routes/auth.js';
 import { chatRoutes } from '../routes/chats.js';
+import { modelRoutes } from '../routes/models.js';
 import { createAi } from '../services/ai.js';
 import { errorHandler, notFound } from '../middleware/errorHandler.js';
 
@@ -33,6 +34,7 @@ export function createApp(deps = {}) {
   app.get('/api/health', (_req, res) => res.json({ ok: true, ai: ai.configError() ? 'not configured' : 'ready' }));
   app.use('/api/auth', authRoutes);
   app.use('/api/chats', chatRoutes(ai));
+  app.use('/api/models', modelRoutes(ai));
   app.use('/api', notFound);
 
   // Production: serve the built React app from the same origin (cookies then just work).

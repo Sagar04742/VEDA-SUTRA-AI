@@ -66,6 +66,16 @@ Chosen for a **free** key after measuring tool calling, speed and rate limits on
 | `GEMINI_FALLBACK_MODEL` | `gemini-3.1-flash-lite` | Free quotas are per model, so when the main model is limited the answer restarts on this one (nothing is shown twice) |
 | `MISTRAL_MODEL` | `ministral-8b-latest` | Short, good titles (also in Hindi); `mistral-small` was throttled on the free plan |
 
+**Model picker (the three answer levels).** Click the logo in the chat to choose how much detail you want. The choice is remembered in the browser and sent with each message:
+
+| Level | Model setting | Answer style |
+| --- | --- | --- |
+| **Sutra Lite** (default) | `GEMINI_MODEL` | one or two short paragraphs, about 120 words |
+| **Sutra Plus** | `GEMINI_MODEL_PLUS` | clear, balanced, about 300 words with one example |
+| **Sutra Pro** | `GEMINI_MODEL_PRO` | thorough: idea, steps, worked example, caveats, related concepts |
+
+A level whose model is not set uses the one below it. If a level's model is busy or at its free limit, the answer comes from the next model down and the user is told (for example "Sutra Pro is busy or at its free usage limit right now, so this answer came from Sutra Plus"). With the project's models, a live test of the same question gave 79 words (Lite), 250 words (Plus) and 541 words (Pro), and Pro really did fall back to Plus when Google returned a 503.
+
 Measured on the free tier: `gemini-3.5-flash` and `gemini-3.8-flash` give better answers but allow only about 6 calls per minute, and one question needs 2–3 calls (a tool call, then the answer), so they run dry almost immediately. If you move to a paid plan, set `GEMINI_MODEL=gemini-3.5-flash` (or newer) for the best quality.
 
 When every model is limited, the user sees a message with a live countdown instead of an error. **Web search** (Google Search grounding) was refused on the free key (quota 0); the app then answers from the knowledge base and says so.

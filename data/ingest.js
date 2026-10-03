@@ -9,7 +9,7 @@ import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parseAiks, parseStarter, parseQaRows } from './formats.js';
+import { parseAiks, parseAisDetailed, parseStarter, parseQaRows } from './formats.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RAW_DIR = path.join(HERE, 'raw');
@@ -255,6 +255,7 @@ export async function entriesForFile(file, buffer, sidecar = {}) {
     // Known dataset layouts get a dedicated parser; anything else is split by headings.
     const text = lines.map((l) => l.text).join('\n');
     if (/^AIKS-\d+ \| /m.test(text)) return parseAiks(lines, file);
+    if (/^AIS-\d+ \| /m.test(text)) return parseAisDetailed(lines, file);
     if (/^(IAM|AIS)-\d+ — /m.test(text)) return parseStarter(lines, file);
     return sectionsToEntries(sectionise(lines, title), file, meta);
   }

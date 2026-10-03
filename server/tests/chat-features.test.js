@@ -2,11 +2,13 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import { startDb, signup, sendMessage, newChat, sleep } from './helpers.js';
+import { buildTiers, publicTier } from '../config/tiers.js';
 
 let stop, app, Chat, Image, cookieA, cookieB, calls, behaviour;
 
 const fakeAi = {
   configError: () => null,
+  tiers: () => buildTiers({ model: 'lite-m', modelPlus: 'plus-m', modelPro: 'pro-m' }).map(publicTier),
   generateTitle: async (t) => `T: ${t.slice(0, 12)}`,
   streamChat: async (args) => {
     calls.push(args);
@@ -112,10 +114,10 @@ describe('tools (web search, deep explain)', () => {
     const id = await newChat(app, cookieA);
     behaviour = answer('From the web: ...', { sources: [{ title: 'Example', uri: 'https://example.com' }] });
     await sendMessage(app, cookieA, id, 'latest research?', { webSearch: true, deepExplain: true });
-    expect(calls[0].options).toEqual({ webSearch: true, deepExplain: true });
+    expect(calls[0].options).toEqual({ webSearch: true, deepExplain: true, tier: 'lite' });
 
     await sendMessage(app, cookieA, id, 'plain');
-    expect(calls[1].options).toEqual({ webSearch: false, deepExplain: false });
+    expect(calls[1].options).toEqual({ webSearch: false, deepExplain: false, tier: 'lite' });
 
     const chat = await request(app).get(`/api/chats/${id}`).set('Cookie', cookieA);
     expect(chat.body.chat.messages[1].sources).toEqual([{ title: 'Example', uri: 'https://example.com' }]);
@@ -130,6 +132,27 @@ describe('tools (web search, deep explain)', () => {
     };
     const res = await sendMessage(app, cookieA, id, 'hi', { webSearch: true });
     expect(res.events.find((e) => e.event === 'notice').data.message).toMatch(/not available/);
+  });
+});
+
+describe('answer levels', () => {
+  it('lists the levels, and passes the chosen level to the model service (Lite by default)', async () => {
+    const list = await request(app).get('/api/models').set('Cookie', cookieA);
+    expect(list.status).toBe(200);
+    expect(list.body.default).toBe('lite');
+    expect(list.body.tiers.map((t) => t.name)).toEqual(['Sutra Lite', 'Sutra Plus', 'Sutra Pro']);
+    expect(Object.keys(list.body.tiers[0]).sort()).toEqual(['id', 'model', 'name', 'tagline']);
+
+    const id = await newChat(app, cookieA);
+    await sendMessage(app, cookieA, id, 'no level chosen');
+    await sendMessage(app, cookieA, id, 'pro please', { tier: 'pro' });
+    expect(calls.map((c) => c.options.tier)).toEqual(['lite', 'pro']);
+  });
+
+  it('rejects an unknown level', async () => {
+    const id = await newChat(app, cookieA);
+    expect((await sendMessage(app, cookieA, id, 'hi', { tier: 'ultra' })).status).toBe(400);
+    expect(calls).toHaveLength(0);
   });
 });
 

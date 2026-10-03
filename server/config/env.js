@@ -12,6 +12,6 @@ export const env = {
   // Use 'none' only if the client is hosted on a different site than the API.
   cookieSameSite: ['lax', 'strict', 'none'].includes(process.env.COOKIE_SAMESITE) ? process.env.COOKIE_SAMESITE : 'lax',
   historyLimit: num(process.env.CHAT_HISTORY_LIMIT, 20),
-  gemini: { apiKey: process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL, fallbackModel: process.env.GEMINI_FALLBACK_MODEL || undefined },
+  gemini: { apiKey: process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL, fallbackModel: process.env.GEMINI_FALLBACK_MODEL || undefined, modelPlus: process.env.GEMINI_MODEL_PLUS || undefined, modelPro: process.env.GEMINI_MODEL_PRO || undefined },
   mistral: { apiKey: process.env.MISTRAL_API_KEY, model: process.env.MISTRAL_MODEL },
 };

@@ -203,7 +203,7 @@ describe('gemini: images, web search and deep explain', () => {
   });
 
   it('system prompt asks for a warm tone, multilingual replies and English search queries', () => {
-    for (const phrase of ['friendly and positive', 'language the user writes in', 'searchKnowledge queries in English', 'IMAGES', 'Never guess digits']) {
+    for (const phrase of ['friendly and positive', 'language the user writes in', 'searchKnowledge queries in English', 'IMAGES', 'Never guess digits', 'Do not equate ancient concepts with modern science', 'Never invent exact dates', 'not medical advice and not proof of safety']) {
       expect(SYSTEM_PROMPT).toContain(phrase);
     }
   });

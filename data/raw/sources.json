@@ -4,7 +4,13 @@
     "source": "Vedic Mathematics Application Datasets (research survey PDF supplied by the project owner; it summarises findings reported in the papers it cites)",
     "provenance": "interpretation",
     "category": "research",
-    "tags": ["research", "survey", "vedic math", "vedic maths", "vedic mathematics"]
+    "tags": [
+      "research",
+      "survey",
+      "vedic math",
+      "vedic maths",
+      "vedic mathematics"
+    ]
   },
   "Final_Vedic_Maths_Ancient_Indian_Science_Training_Dataset.pdf": {
     "source": "AIKS training dataset (project owner)",
@@ -18,6 +24,14 @@
     "source": "Project question bank",
     "provenance": "interpretation"
   },
-  "questions_extended.pdf": { "skip": true },
-  "Vedic_Math_Dataset_Pack.pdf": { "skip": true }
+  "questions_extended.pdf": {
+    "skip": true
+  },
+  "Vedic_Math_Dataset_Pack.pdf": {
+    "skip": true
+  },
+  "Ancient_Indian_Science_Detailed_Training_Dataset.pdf": {
+    "source": "Ancient Indian Science detailed dataset (project owner)",
+    "provenance": "interpretation"
+  }
 }

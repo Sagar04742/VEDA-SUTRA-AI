@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useChats } from '../hooks/useChats.js';
 import { useConversation } from '../hooks/useConversation.js';
 import { useSpeech } from '../hooks/useSpeech.js';
+import { useModelTier } from '../hooks/useModelTier.js';
+import ModelPicker, { TierBadge } from '../components/ModelPicker.jsx';
 import { MAX_IMAGES, prepareImage } from '../utils/image.js';
 import Sidebar, { TOPICS } from '../components/Sidebar.jsx';
 import Composer from '../components/Composer.jsx';
@@ -44,6 +46,7 @@ export default function Chat() {
   const [imageError, setImageError] = useState('');
   const [options, setOptions] = useState({ webSearch: false, deepExplain: false });
   const [voiceLang, setVoiceLang] = useState(() => stored('voiceLang', 'en-IN'));
+  const picker = useModelTier();
 
   const conv = useConversation({
     onChatCreated: useCallback((chat) => {
@@ -102,7 +105,7 @@ export default function Chat() {
     if ((!content.trim() && !images.length) || streaming) return;
     speech.stop();
     stick.current = true;
-    conv.send({ content, images, ...options });
+    conv.send({ content, images, ...options, tier: picker.tier });
     setText('');
     setImages([]);
     setImageError('');
@@ -141,6 +144,7 @@ export default function Chat() {
           if (routeId) navigate('/');
         }}
         chatList={list}
+        picker={picker}
         activeId={routeId}
         onRename={list.rename}
         onDelete={remove}
@@ -149,13 +153,18 @@ export default function Chat() {
       <main className="relative flex min-w-0 flex-1 flex-col">
         {empty && <HeroBackdrop />}
 
-        <button
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open sidebar"
-          className="relative z-10 m-3 w-fit rounded-lg border border-white/10 bg-ink-900/70 p-2 text-gold-300 md:hidden"
-        >
-          <MenuIcon />
-        </button>
+        {/* Phone top bar: the menu button, and the answer level without opening the menu */}
+        <div className="relative z-20 flex items-center gap-2 p-3 md:hidden">
+          <button onClick={() => setSidebarOpen(true)} aria-label="Open sidebar" className="rounded-lg border border-white/10 bg-ink-900/70 p-2 text-gold-300">
+            <MenuIcon />
+          </button>
+          <ModelPicker tiers={picker.tiers} value={picker.tier} onChange={picker.setTier} label="Choose answer level">
+            <span className="flex items-center gap-2 px-2 py-1">
+              <span className="font-serif text-lg text-gold-200">VedaSutra</span>
+              <TierBadge tier={picker.current} />
+            </span>
+          </ModelPicker>
+        </div>
 
         <div ref={scrollRef} onScroll={onScroll} className={`relative z-10 flex flex-1 flex-col overflow-y-auto px-4 ${empty ? 'items-center text-center' : ''}`}>
           {empty ? (
