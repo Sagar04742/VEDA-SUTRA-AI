@@ -96,7 +96,7 @@ Files without their own metadata take defaults from **`data/raw/sources.json`** 
 
 `Vedic Mathematics Application Datasets.pdf` (the file supplied so far) is a research survey on hardware multipliers and teaching studies, not a tutorial, so it is loaded as `interpretation`/`research`. `core-vedic-math.json` is a curated seed (the 16 sutras and the techniques the solver implements) written for this project. Review it. It deliberately notes that the Vedic origin of the sutras is the author's attribution and is not supported by study of the surviving Vedic texts.
 
-`npm run ingest -- --dry` (from `server/`, or `node data/ingest.js --dry`) writes cleaned chunks to `data/processed/` without touching the database, handy for checking how a new file was split.
+`node data/ingest.js --dry` (from the repo root) writes cleaned chunks to `data/processed/` without touching the database, handy for checking how a new file was split.
 
 There is no ancient-science content yet beyond what the PDF touches. Until you add it, the bot will say the knowledge base has nothing on such topics rather than guess.
 
