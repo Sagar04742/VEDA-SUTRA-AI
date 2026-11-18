@@ -14,6 +14,7 @@ const read = () => {
 // plus what the server says it can do right now (for example whether Web search is available).
 export function useModelTier() {
   const [tiers, setTiers] = useState([]);
+  const [arena, setArena] = useState([]); // everyone who can enter a Shastrarth battle: the levels and single models
   const [tier, setTierState] = useState(read() || 'lite');
   const [capabilities, setCapabilities] = useState({ webSearch: true });
 
@@ -21,8 +22,9 @@ export function useModelTier() {
     () =>
       modelsApi
         .list()
-        .then(({ tiers: list, default: def, capabilities: caps }) => {
+        .then(({ tiers: list, arena: fighters, default: def, capabilities: caps }) => {
           setTiers(list);
+          setArena(fighters ?? []);
           if (caps) setCapabilities(caps);
           // Forget a saved level that no longer exists.
           setTierState((cur) => (list.some((t) => t.id === cur) ? cur : def));
@@ -44,5 +46,5 @@ export function useModelTier() {
     }
   }, []);
 
-  return { tiers, tier, setTier, current: tiers.find((t) => t.id === tier), capabilities, refresh };
+  return { tiers, arena, tier, setTier, current: tiers.find((t) => t.id === tier), capabilities, refresh };
 }

@@ -15,6 +15,7 @@ const knowledgeSchema = new mongoose.Schema(
     source: { type: String, required: true },
     provenance: { type: String, enum: PROVENANCE, required: true },
     sourceFile: { type: String, index: true }, // which raw file it came from (lets ingest replace it cleanly)
+    kind: { type: String, enum: ['curated', 'book'], default: 'curated', index: true }, // 'book' = a chunk of a whole book (data/books.js)
   },
   { timestamps: true }
 );

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, CloseIcon, GlobeIcon, LotusIcon, MicIcon, PaperclipIcon, SendIcon, SparkIcon, StopIcon } from './Icons.jsx';
-import { VOICE_LANGUAGES } from '../hooks/useSpeech.js';
+import { ChevronDown, CloseIcon, SwordsIcon, GlobeIcon, LotusIcon, MicIcon, PaperclipIcon, SendIcon, SparkIcon, StopIcon } from './Icons.jsx';
+import VoiceLangMenu from './VoiceLangMenu.jsx';
 import ModelPicker from './ModelPicker.jsx';
 import { MAX_IMAGES } from '../utils/image.js';
 
@@ -32,6 +32,7 @@ export default function Composer({
   value, onChange, onSend, onStop, streaming, placeholder,
   images, onPickImages, onRemoveImage, imageError,
   options, onOptions,
+  onShastrarth,
   speech, voiceLang, onVoiceLang,
   picker,
 }) {
@@ -79,20 +80,14 @@ export default function Composer({
         <Toggle on={options.deepExplain} onClick={() => onOptions({ ...options, deepExplain: !options.deepExplain })} Icon={SparkIcon} title="A longer, more thorough explanation with examples">
           Deep explain
         </Toggle>
-        {speech.supported && (
-          <label className="ml-auto flex items-center gap-1.5 text-xs text-parchment/60">
-            <MicIcon width={14} height={14} />
-            <span className="sr-only">Voice language</span>
-            <select
-              value={voiceLang}
-              onChange={(e) => onVoiceLang(e.target.value)}
-              aria-label="Voice language"
-              className="rounded-md border border-white/10 bg-ink-900 px-1.5 py-0.5 text-xs text-parchment/80 outline-none focus:border-gold-400"
-            >
-              {VOICE_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
-            </select>
-          </label>
-        )}
+        <button
+          type="button"
+          onClick={onShastrarth}
+          title="Open the Shastrarth arena: pit two models against each other, judged by Pramana. Your question comes with you."
+          className="flex items-center gap-1.5 rounded-full border border-side-a/70 bg-gradient-to-r from-side-a/25 to-side-b/25 px-3 py-1 text-xs font-medium text-parchment transition hover:-translate-y-0.5 hover:from-side-a/40 hover:to-side-b/40"
+        >
+          <SwordsIcon width={14} height={14} /> Shastrarth
+        </button>
       </div>
 
       {/* Attached pictures */}
@@ -115,7 +110,7 @@ export default function Composer({
         <ModelPicker tiers={picker.tiers} value={picker.tier} onChange={picker.setTier} label="Choose answer level (Sutra Lite, Plus or Pro)">
           <LotusIcon className="text-gold-400" width={28} height={28} />
           <span className="hidden text-xs text-gold-200 sm:inline">{picker.current?.name}</span>
-          <ChevronDown className="text-parchment/50" width={14} height={14} />
+          <ChevronDown className="hidden text-parchment/50 sm:block" width={14} height={14} />
         </ModelPicker>
         <span className="hidden h-8 w-px bg-white/10 sm:block" />
         <textarea
@@ -124,7 +119,7 @@ export default function Composer({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={speech.listening ? 'Listening… speak now' : narrow ? 'Ask me anything…' : placeholder}
+          placeholder={speech.listening ? 'Listening… speak now' : narrow ? 'Ask anything…' : placeholder}
           maxLength={4000}
           aria-label="Message"
           className="min-h-[2.5rem] min-w-0 flex-1 resize-none bg-transparent py-2 text-parchment outline-none placeholder:text-parchment/40"
@@ -152,6 +147,7 @@ export default function Composer({
           <PaperclipIcon />
         </button>
 
+        {speech.supported && <VoiceLangMenu value={voiceLang} onChange={onVoiceLang} />}
         {speech.supported && (
           <button
             onClick={() => (speech.listening ? speech.stop() : speech.start(value))}
@@ -179,7 +175,7 @@ export default function Composer({
             onClick={submit}
             disabled={!canSend}
             aria-label="Send"
-            className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gold-300 text-ink-950 transition hover:bg-gold-200 disabled:opacity-40"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gold-300 sm:h-12 sm:w-12 text-ink-950 transition hover:bg-gold-200 disabled:opacity-40"
           >
             <SendIcon />
           </button>

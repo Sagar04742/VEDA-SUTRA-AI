@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { chatsApi, streamMessage } from '../api/chats.js';
+import { mergeActivity } from '../components/ActivityTrail.jsx';
 
 const STREAMING_ID = 'streaming';
 let localId = 0;
@@ -17,6 +18,8 @@ export function useConversation({ onChatCreated, onChatDiscarded, onTitle, onAct
   const abortRef = useRef(null);
 
   const patchStreaming = (fn) => setMessages((cur) => cur.map((m) => (m.id === STREAMING_ID ? fn(m) : m)));
+  // Shastrarth (battle): change one side (a or b) of the live answer.
+  const patchSide = (side, fn) => patchStreaming((m) => ({ ...m, battle: { ...m.battle, [side]: fn(m.battle[side]) } }));
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
@@ -49,7 +52,7 @@ export function useConversation({ onChatCreated, onChatDiscarded, onTitle, onAct
     }
   }, []);
 
-  // payload: { content, images: [{ mimeType, data, preview }], webSearch, deepExplain }
+  // payload: { content, images: [{ mimeType, data, preview }], webSearch, deepExplain, tier, battle: { a, b, names } }
   const send = useCallback(
     async (payload) => {
       const content = (payload.content ?? '').trim();
@@ -74,10 +77,12 @@ export function useConversation({ onChatCreated, onChatDiscarded, onTitle, onAct
         }
       }
 
+      const cmp = payload.battle;
+      const blankSide = (id) => ({ id, name: cmp.names?.[id] ?? id, startedAt: Date.now(), content: '', solver: [], sources: [], activity: [], error: null, notice: '', done: false });
       setMessages((cur) => [
         ...cur,
         { id: nextId(), role: 'user', content, images: images.map((i) => ({ id: nextId(), preview: i.preview })) },
-        { id: STREAMING_ID, role: 'assistant', content: '', solver: [], sources: [], streaming: true },
+        { id: STREAMING_ID, role: 'assistant', content: '', solver: [], sources: [], activity: [], streaming: true, ...(cmp ? { battle: { a: blankSide(cmp.a), b: blankSide(cmp.b) } } : {}) },
       ]);
       setStreaming(true);
 
@@ -88,11 +93,30 @@ export function useConversation({ onChatCreated, onChatDiscarded, onTitle, onAct
       try {
         await streamMessage(
           id,
-          { content, images: images.map(({ mimeType, data }) => ({ mimeType, data })), webSearch: Boolean(payload.webSearch), deepExplain: Boolean(payload.deepExplain), tier: payload.tier || 'lite' },
+          { content, images: images.map(({ mimeType, data }) => ({ mimeType, data })), webSearch: Boolean(payload.webSearch), deepExplain: Boolean(payload.deepExplain), tier: payload.tier || 'lite', ...(cmp ? { battle: { a: cmp.a, b: cmp.b } } : {}) },
           {
             signal: ac.signal,
             onEvent: (event, data) => {
-              if (event === 'token') patchStreaming((m) => ({ ...m, content: m.content + data.text }));
+              if (data.side) {
+                // Compare mode: every event says which side it belongs to.
+                const { side, ...rest } = data;
+                if (event === 'token') patchSide(side, (s) => ({ ...s, content: s.content + rest.text }));
+                else if (event === 'solver') patchSide(side, (s) => ({ ...s, solver: [...s.solver, rest] }));
+                else if (event === 'notice') patchSide(side, (s) => ({ ...s, notice: rest.message }));
+                else if (event === 'activity') patchSide(side, (s) => ({ ...s, activity: mergeActivity(s.activity, rest) }));
+                else if (event === 'side_error') patchSide(side, (s) => ({ ...s, error: rest, done: true, ms: rest.ms }));
+                else if (event === 'side_done') patchSide(side, (s) => ({ ...s, done: true, ms: rest.ms }));
+                return;
+              }
+              if (event === 'verdict') {
+                patchStreaming((m) => ({
+                  ...m,
+                  battle: data.unscored
+                    ? { ...m.battle, unscored: data.reason }
+                    : { ...m.battle, a: { ...m.battle.a, ...data.a }, b: { ...m.battle.b, ...data.b }, winner: data.winner, margin: data.margin, evidence: data.evidence, judgedMs: data.judgedMs },
+                }));
+              } else if (event === 'activity') patchStreaming((m) => ({ ...m, activity: mergeActivity(m.activity, data) }));
+              else if (event === 'token') patchStreaming((m) => ({ ...m, content: m.content + data.text }));
               else if (event === 'solver') patchStreaming((m) => ({ ...m, solver: [...m.solver, data] }));
               else if (event === 'notice') setNotice(data.message);
               else if (event === 'title') onTitle(id, data.title);
@@ -115,7 +139,8 @@ export function useConversation({ onChatCreated, onChatDiscarded, onTitle, onAct
       setMessages((cur) =>
         cur.flatMap((m) => {
           if (m.id !== STREAMING_ID) return [m];
-          if (failed || (!m.content && !m.solver.length)) return []; // nothing worth keeping
+          const kept = m.battle ? ['a', 'b'].some((s) => m.battle[s].content || m.battle[s].solver.length) : m.content || m.solver.length;
+          if (failed || !kept) return []; // nothing worth keeping
           return [{ ...m, id: nextId(), streaming: false }]; // stopped: keep the partial answer
         })
       );

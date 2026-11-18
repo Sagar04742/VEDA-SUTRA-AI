@@ -118,6 +118,7 @@ export const webSearchDeclaration = {
 };
 
 export const isSolverTool = (name) => name in SOLVER_TOOLS;
+export const solverToolNames = Object.keys(SOLVER_TOOLS);
 
 // ctx.previousUserMessages: earlier user messages in this chat (oldest first), used as a retrieval fallback.
 export async function executeTool(name, args = {}, ctx = {}) {

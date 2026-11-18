@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import Brand from './Brand.jsx';
 import UserMenu from './UserMenu.jsx';
 import ChatList from './ChatList.jsx';
-import { ChevronLeft, ChevronRight, PlusIcon, RootIcon, TempleIcon } from './Icons.jsx';
+import { ChevronLeft, ChevronRight, PlusIcon, RootIcon, SwordsIcon, TempleIcon } from './Icons.jsx';
 
 // Topic shortcuts: clicking one puts a different starter question in the input each time (see utils/prompts.js).
 export const TOPICS = [
@@ -42,6 +42,26 @@ export default function Sidebar({ open, collapsed, onClose, onNewChat, onTopic, 
         >
           <PlusIcon /> New Chat
         </button>
+
+        {/* Featured: the battle arena has its own page */}
+        <Link
+          to="/shastrarth"
+          onClick={onClose}
+          aria-label="Open Shastrarth, the battle of the models"
+          className="group relative block overflow-hidden rounded-2xl border border-gold-300/60 shadow-lg shadow-black/30 transition hover:-translate-y-0.5 hover:border-gold-200"
+        >
+          <span aria-hidden className="arena-thumb absolute inset-0 scale-105 transition duration-700 group-hover:scale-110" />
+          <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-ink-950/95 via-ink-950/55 to-ink-950/10" />
+          <span aria-hidden className="edge-sweep absolute inset-x-0 top-0 h-0.5" />
+          <span className="relative flex min-h-[7rem] flex-col justify-end p-3">
+            <span className="mb-auto flex items-center justify-between">
+              <span className="rounded-full bg-gold-300 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-950">Featured</span>
+              <SwordsIcon width={18} height={18} className="text-gold-200 drop-shadow" />
+            </span>
+            <span className="font-serif text-2xl leading-none text-parchment drop-shadow">Shastrarth <span className="font-deva text-lg">शास्त्रार्थ</span></span>
+            <span className="mt-0.5 text-[11px] text-parchment/80">Battle of the models, judged by Pramana</span>
+          </span>
+        </Link>
 
         <div className="space-y-2">
           {TOPICS.map(({ id, title, Icon }) => (

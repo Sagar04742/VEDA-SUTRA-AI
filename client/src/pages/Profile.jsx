@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { profileApi } from '../api/profile.js';
 import { errorMessage } from '../api/client.js';
 import ThemeToggle from '../components/ThemeToggle.jsx';
-import { ChartIcon, CheckIcon, FlameIcon, HomeIcon, LockIcon, LogoutIcon, LotusIcon, ChevronLeft } from '../components/Icons.jsx';
+import { ChartIcon, CheckIcon, ClockIcon, CrownIcon, FlameIcon, HomeIcon, LockIcon, LogoutIcon, LotusIcon, ChevronLeft } from '../components/Icons.jsx';
 
 const dayLabel = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
@@ -104,14 +104,74 @@ function Bars({ items, empty }) {
   );
 }
 
+// Elo ratings of the models, from the Shastrarth battles this user has run. Every result was decided by Pramana.
+function Leaderboard({ arena }) {
+  if (!arena) return <p className="text-sm text-parchment/50">Loading the arena…</p>;
+  if (!arena.leaderboard.length) {
+    return (
+      <div className="rounded-xl border border-dashed border-gold-500/40 p-6 text-center">
+        <CrownIcon className="mx-auto text-gold-400" width={30} height={30} />
+        <p className="mt-2 font-serif text-xl">The arena is waiting</p>
+        <p className="mt-1 text-sm text-parchment/60">Open <strong>Shastrarth</strong>, pick two models and ask a question. Pramana scores both, and the winners climb this board.</p>
+        <Link to="/shastrarth" className="mt-4 inline-block rounded-full bg-gold-300 px-5 py-2 text-sm font-medium text-ink-950 hover:bg-gold-200">Enter the arena</Link>
+      </div>
+    );
+  }
+  const top = Math.max(...arena.leaderboard.map((r) => r.elo));
+  const low = Math.min(...arena.leaderboard.map((r) => r.elo), top - 50);
+  return (
+    <div>
+      <p className="mb-3 text-xs text-parchment/60">{arena.battles} battle{arena.battles === 1 ? '' : 's'} so far. Everyone starts at 1000; beating a stronger model earns more.</p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-left text-sm" aria-label="Shastrarth leaderboard">
+          <thead className="text-xs uppercase tracking-wider text-parchment/45">
+            <tr><th className="py-2 pr-2 font-normal">#</th><th className="py-2 font-normal">Model</th><th className="py-2 font-normal">Elo</th><th className="py-2 font-normal">W-L-D</th><th className="py-2 font-normal">Avg score</th><th className="py-2 font-normal">Speed</th><th className="py-2 font-normal">Risky</th></tr>
+          </thead>
+          <tbody>
+            {arena.leaderboard.map((r, i) => (
+              <tr key={r.key} className="border-t border-white/5">
+                <td className="py-2.5 pr-2">{i === 0 ? <CrownIcon width={18} height={18} className="text-gold-300" /> : <span className="text-parchment/50">{i + 1}</span>}</td>
+                <td className="py-2.5">
+                  <span className="font-medium text-parchment">{r.name}</span>
+                  {r.providerName && <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-parchment/60">{r.providerName}</span>}
+                </td>
+                <td className="py-2.5">
+                  <span className="font-semibold tabular-nums text-gold-200">{r.elo}</span>
+                  <span className="mt-1 block h-1.5 w-28 overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full bg-gradient-to-r from-gold-600 to-gold-200" style={{ width: `${Math.max(6, ((r.elo - low) / (top - low || 1)) * 100)}%` }} /></span>
+                </td>
+                <td className="py-2.5 tabular-nums text-parchment/80">{r.wins}-{r.losses}-{r.ties}</td>
+                <td className="py-2.5 tabular-nums text-parchment/80">{r.avgScore}<span className="text-parchment/40"> /10</span></td>
+                <td className="py-2.5 tabular-nums text-parchment/70">{r.avgSeconds != null ? <span className="flex items-center gap-1"><ClockIcon width={12} height={12} /> {r.avgSeconds}s</span> : '–'}</td>
+                <td className={`py-2.5 tabular-nums ${r.highRiskShare >= 30 ? 'text-bad' : r.highRiskShare > 0 ? 'text-warn' : 'text-good'}`}>{r.highRiskShare}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {arena.recent.length > 0 && (
+        <div className="mt-4 border-t border-white/5 pt-3">
+          <p className="mb-1 text-xs uppercase tracking-wider text-parchment/45">Latest battles</p>
+          <ul className="space-y-1 text-xs text-parchment/75">
+            {arena.recent.map((b, i) => (
+              <li key={i}><span className={b.winner === 'a' ? 'font-semibold text-side-a' : ''}>{b.a} {b.scoreA}</span> <span className="text-parchment/40">vs</span> <span className={b.winner === 'b' ? 'font-semibold text-side-b' : ''}>{b.b} {b.scoreB}</span>{b.winner === 'tie' && <span className="text-parchment/50"> (draw)</span>}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Profile() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [arena, setArena] = useState(null);
 
   useEffect(() => {
     profileApi.stats().then(setData).catch((e) => setError(errorMessage(e)));
+    profileApi.arena().then(setArena).catch(() => setArena({ battles: 0, leaderboard: [], recent: [] }));
   }, []);
 
   const stats = data?.stats;
@@ -198,6 +258,8 @@ export default function Profile() {
                 <Bars items={stats.languages} empty="No questions yet." />
               </Card>
             </div>
+
+            <Card title="Shastrarth leaderboard"><Leaderboard arena={arena} /></Card>
 
             <Card title="Badges">
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

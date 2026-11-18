@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckIcon } from './Icons.jsx';
 
+const PROVIDERS = { gemini: 'Gemini', groq: 'Groq', mistral: 'Mistral' };
+
 // Dropdown for choosing the answer level. `children` is what you click (the lotus logo in the input box).
 // The list opens upward because the input box sits at the bottom of the screen.
 export default function ModelPicker({ tiers, value, onChange, children, label = 'Choose answer level' }) {
@@ -56,6 +58,7 @@ export default function ModelPicker({ tiers, value, onChange, children, label = 
                   <span className="min-w-0 flex-1">
                     <span className="block font-serif text-lg leading-tight text-parchment">{t.name}</span>
                     <span className="block text-xs text-parchment/60">{t.tagline}</span>
+                    {t.model && <span className="mt-0.5 block truncate text-[11px] text-parchment/40">{PROVIDERS[t.provider] ?? t.provider} · {t.model}</span>}
                   </span>
                 </button>
               </li>

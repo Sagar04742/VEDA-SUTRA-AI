@@ -29,13 +29,26 @@ export function parseSseBuffer(buffer) {
 // payload: { content, images: [{mimeType, data}], webSearch, deepExplain }
 // Aborting `signal` closes the connection, which also makes the server stop generating.
 export async function streamMessage(chatId, payload, { signal, onEvent }) {
-  const res = await fetch(`${API_BASE}/chats/${chatId}/messages`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const send = () =>
+    fetch(`${API_BASE}/chats/${chatId}/messages`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal,
+    });
+  // While the API restarts, the proxy answers 502 or refuses the connection: the message never reached the app, so wait
+  // a moment and send it again (nothing has streamed yet, so it cannot be sent twice).
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await send();
+      if (res.status !== 502 || attempt >= 4) break;
+    } catch (e) {
+      if (signal?.aborted || e?.name === 'AbortError' || attempt >= 4) throw e;
+    }
+    await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

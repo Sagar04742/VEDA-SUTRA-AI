@@ -13,7 +13,7 @@ import MessageBubble from '../components/MessageBubble.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import { HeroBackdrop, Ornament } from '../components/Hero.jsx';
-import { ArrowRight, CloseIcon, GlobeIcon, MenuIcon } from '../components/Icons.jsx';
+import { ArrowRight, CloseIcon, GlobeIcon, MenuIcon, SwordsIcon } from '../components/Icons.jsx';
 
 const CARDS = [
   { ...TOPICS[0], blurb: 'Fast calculations, unique techniques and concepts from the Vedas.' },
@@ -189,7 +189,19 @@ export default function Chat() {
               <MenuIcon />
             </button>
           </div>
-          <ThemeToggle className="ml-auto" />
+          <div className="ml-auto flex items-center gap-2">
+            {/* Always visible, even when the sidebar is closed */}
+            <button
+              onClick={() => navigate('/shastrarth', { state: { question: text } })}
+              title="Open the Shastrarth arena"
+              className="flex items-center gap-2 rounded-full border border-gold-300/70 bg-gradient-to-r from-side-a/30 to-side-b/30 px-3.5 py-1.5 text-sm font-medium text-parchment shadow-lg shadow-black/20 backdrop-blur transition hover:-translate-y-0.5 hover:border-gold-200"
+            >
+              <SwordsIcon width={16} height={16} className="text-gold-200" />
+              <span>Shastrarth</span>
+              <span className="hidden rounded-full bg-gold-300 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-950 sm:inline">Featured</span>
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
 
         <div ref={scrollRef} onScroll={onScroll} className={`relative z-10 flex flex-1 flex-col overflow-y-auto px-4 ${empty ? 'items-center text-center' : ''}`}>
@@ -219,6 +231,26 @@ export default function Chat() {
                   </button>
                 ))}
               </div>
+
+              {/* The featured feature, on its own */}
+              <button
+                onClick={() => navigate('/shastrarth')}
+                aria-label="Open Shastrarth, the battle of the models"
+                style={{ animationDelay: '360ms' }}
+                className="fade-up group relative mb-5 w-full max-w-5xl overflow-hidden rounded-2xl border border-gold-300/70 text-left shadow-xl shadow-black/30 transition hover:-translate-y-1 hover:border-gold-200"
+              >
+                <span aria-hidden className="arena-banner-bg absolute inset-0 group-hover:scale-105" />
+                <span aria-hidden className="absolute inset-0 bg-gradient-to-r from-ink-950/92 via-ink-950/60 to-ink-950/15" />
+                <span aria-hidden className="edge-sweep absolute inset-x-0 top-0 h-0.5" />
+                <span className="relative flex flex-wrap items-center gap-4 p-5 sm:p-6">
+                  <span className="min-w-0 flex-1">
+                    <span className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-gold-300 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-950"><SwordsIcon width={12} height={12} /> Featured</span>
+                    <span className="block font-serif text-3xl leading-tight text-parchment sm:text-4xl">Shastrarth <span className="font-deva text-2xl sm:text-3xl">शास्त्रार्थ</span></span>
+                    <span className="mt-1 block max-w-xl text-sm text-parchment/85">Pit two AI models against each other on the same question. Pramana, our own checker (no AI judge), scores both out of 10.</span>
+                  </span>
+                  <span className="edge-sweep flex shrink-0 items-center gap-2 rounded-full px-6 py-2.5 font-semibold text-ink-950 shadow-lg shadow-black/30 transition group-hover:scale-105">Enter the arena <ArrowRight width={18} height={18} /></span>
+                </span>
+              </button>
 
               <div className="fade-up mb-4 flex max-w-4xl flex-wrap justify-center gap-2" style={{ animationDelay: '480ms' }}>
                 {SUGGESTIONS.map((s) => (
@@ -264,6 +296,7 @@ export default function Chat() {
               imageError={imageError}
               options={{ ...options, webSearch: webSearchOn }}
               onOptions={setOptions}
+              onShastrarth={() => navigate('/shastrarth', { state: { question: text } })}
               speech={speech}
               voiceLang={voiceLang}
               onVoiceLang={changeVoiceLang}

@@ -22,7 +22,9 @@ try {
 const ai = createAi();
 const aiProblem = ai.configError();
 if (aiProblem) console.warn(`! ${aiProblem} Login works, but chat answers are disabled until it is set.`);
-if (!env.mistral.apiKey || !env.mistral.model) console.warn('! Mistral is not configured (MISTRAL_API_KEY / MISTRAL_MODEL): chat titles will use the first 40 characters of the message.');
+if (!env.cohere.apiKey) console.warn('! Cohere is not configured (COHERE_API_KEY): chat titles will use the first 40 characters of the message.');
+if (!env.groq.apiKey) console.warn('! Groq is not configured (GROQ_API_KEY): Plus and Pro will use Gemini only.');
+if (!env.mistral.apiKey) console.warn('! Mistral is not configured (MISTRAL_API_KEY): Lite will use Gemini.');
 
 ai.probeWebSearch?.(); // in the background: finds out whether this key can use Google Search
 const app = createApp({ ai });

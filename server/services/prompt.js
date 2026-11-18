@@ -75,6 +75,14 @@ ANSWER LENGTH (thorough mode)
 - Keep the source line, any provenance label and any safety note that the rules above require.`,
 };
 
+// Smaller open models drift past the length in the system prompt, so the limit is repeated right next to the question.
+const REMINDERS = {
+  brief: 'Length: answer in one or two short paragraphs, at most about 120 words.',
+  balanced: 'Length: about three to five short paragraphs, at most about 300 words.',
+  thorough: 'Length: thorough but at most about 600 words.',
+};
+export const lengthReminder = ({ deepExplain = false, style } = {}) => REMINDERS[deepExplain ? 'thorough' : style] ?? '';
+
 export function buildSystemPrompt({ webSearch = false, deepExplain = false, style } = {}) {
   // Deep explain always gets the thorough length, whichever level (Lite/Plus/Pro) is chosen.
   return SYSTEM_PROMPT + (STYLES[deepExplain ? 'thorough' : style] ?? '') + (deepExplain ? DEEP_EXPLAIN : '') + (webSearch ? WEB_SEARCH : '');

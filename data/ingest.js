@@ -4,12 +4,14 @@
 //   npm run ingest -- --dry   clean and chunk only; writes data/processed but does not touch the DB
 //
 // Supported raw files: .json (already structured entries), .md / .txt (split by headings), .pdf (text extracted).
+// A whole book is marked "layout": "book" in sources.json (add "ocr": true for a scan); see books.js.
 // Files without their own metadata take source / provenance / category / tags from data/raw/sources.json.
 import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseAiks, parseAisDetailed, parseStarter, parseQaRows } from './formats.js';
+import { bookEntries } from './books.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RAW_DIR = path.join(HERE, 'raw');
@@ -158,6 +160,17 @@ function sectionsToEntries(sections, file, meta) {
 
 // ---------- per-format readers ----------
 
+async function readPdfPages(buffer) {
+  const { PDFParse } = await import('pdf-parse');
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const { pages } = await parser.getText();
+    return pages.map((p) => ({ num: p.num, text: p.text }));
+  } finally {
+    await parser.destroy();
+  }
+}
+
 async function readPdfLines(buffer) {
   const { PDFParse } = await import('pdf-parse');
   const parser = new PDFParse({ data: buffer });
@@ -251,6 +264,11 @@ export async function entriesForFile(file, buffer, sidecar = {}) {
   }
   if (ext === '.pdf') {
     needsMeta();
+    if (meta.layout === 'book') {
+      const { entries, stats } = bookEntries(await readPdfPages(buffer), file, { ...meta, title: meta.title ?? title }, { chunkText, entry });
+      entries.stats = stats;
+      return entries;
+    }
     const lines = dropReferences(await readPdfLines(buffer));
     // Known dataset layouts get a dedicated parser; anything else is split by headings.
     const text = lines.map((l) => l.text).join('\n');
@@ -313,7 +331,8 @@ async function main() {
     }
     // Keep the extension in the name so questions.csv and questions.pdf cannot overwrite each other.
     if (!sidecar[file]?.skip) await writeFile(path.join(OUT_DIR, `${file}.json`), JSON.stringify(entries, null, 2));
-    console.log(sidecar[file]?.skip ? `- ${file}: skipped (marked skip in sources.json)` : `- ${file}: ${entries.length} entries`);
+    const st = entries.stats ? ` (book: ${entries.stats.chunks} chunks read, ${entries.stats.dropped} dropped as noise)` : '';
+    console.log(sidecar[file]?.skip ? `- ${file}: skipped (marked skip in sources.json)` : `- ${file}: ${entries.length} entries${st}`);
     all.push({ file, entries });
   }
 

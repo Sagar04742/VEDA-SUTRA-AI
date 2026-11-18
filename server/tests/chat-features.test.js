@@ -143,7 +143,7 @@ describe('answer levels', () => {
     expect(list.body.default).toBe('lite');
     expect(list.body.capabilities).toEqual({ webSearch: true, webSearchSource: 'Wikipedia' }); // the UI says where web results come from
     expect(list.body.tiers.map((t) => t.name)).toEqual(['Sutra Lite', 'Sutra Plus', 'Sutra Pro']);
-    expect(Object.keys(list.body.tiers[0]).sort()).toEqual(['id', 'model', 'name', 'tagline']);
+    expect(Object.keys(list.body.tiers[0]).sort()).toEqual(['id', 'model', 'name', 'provider', 'tagline']);
 
     const id = await newChat(app, cookieA);
     await sendMessage(app, cookieA, id, 'no level chosen');

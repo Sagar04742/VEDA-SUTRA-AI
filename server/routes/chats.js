@@ -13,9 +13,11 @@ import { decodeImages, MAX_IMAGES_PER_MESSAGE } from '../utils/images.js';
 import { openSse } from '../utils/sse.js';
 import { describeAiError } from '../services/gemini.js';
 import { attachImages } from '../services/attachments.js';
+import { runBattle } from '../services/battle.js';
 import { DEFAULT_TIER, TIER_IDS } from '../config/tiers.js';
 
 const imageSchema = z.object({ mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']), data: z.string().min(16) });
+const contestantId = z.string().trim().min(2).max(120).regex(/^([a-z]+:.+|lite|plus|pro)$/, 'Unknown contestant');
 const messageSchema = z
   .object({
     content: z.string().trim().max(4000, 'Message is too long (max 4000 characters)').default(''),
@@ -23,6 +25,9 @@ const messageSchema = z
     webSearch: z.boolean().default(false),
     deepExplain: z.boolean().default(false),
     tier: z.enum(TIER_IDS).default(DEFAULT_TIER),
+    // Shastrarth: two contestants (a level such as "pro", or one model such as "groq:qwen/qwen3.8-27b") answer side by side;
+    // the answers are then judged by Pramana, our own checker.
+    battle: z.object({ a: contestantId, b: contestantId }).refine((c) => c.a !== c.b, { message: 'Pick two different contestants' }).optional(),
   })
   .refine((b) => b.content || b.images.length, { message: 'Write a message or attach an image' });
 const renameSchema = z.object({ title: z.string().trim().min(1, 'Title is required').max(80, 'Title is too long') });
@@ -35,6 +40,8 @@ const publicMessage = (m) => ({
   images: (m.images ?? []).map((i) => ({ id: String(i.imageId), mimeType: i.mimeType })),
   solver: m.solver ?? [],
   sources: m.sources ?? [],
+  ...(m.battle || m.compare ? { battle: m.battle ?? m.compare } : {}),
+  ...(m.activity?.length ? { activity: m.activity } : {}),
   createdAt: m.createdAt,
 });
 
@@ -123,7 +130,21 @@ export function chatRoutes(ai) {
       const chatKey = String(chat._id);
       if (answering.has(chatKey)) throw new HttpError(409, 'Still answering your previous message in this chat. Please wait a moment.');
 
-      const { content, images, webSearch, deepExplain, tier } = req.body;
+      const { content, images, webSearch, deepExplain, tier, battle } = req.body;
+      if (battle) {
+        const known = (ai.arena?.() ?? ai.tiers?.() ?? []).map((c) => c.id);
+        if (known.length && ![battle.a, battle.b].every((id) => known.includes(id))) throw new HttpError(400, 'One of those contestants is not available.');
+        // The readiness check: both contestants must really be able to answer right now (a failed model is found out here,
+        // in a second, instead of halfway through a debate).
+        if (ai.ready) {
+          const names = Object.fromEntries((ai.arena?.() ?? []).map((c) => [c.id, c.name]));
+          const checks = await Promise.all([battle.a, battle.b].map((id) => ai.ready(id)));
+          const notReady = checks.find((r) => !r.ready);
+          if (notReady) throw new HttpError(409, `${names[notReady.id] ?? notReady.id} is not ready: ${notReady.reason}. Pick another contestant or try again shortly.`);
+        }
+        const down = (ai.arena?.() ?? []).find((c) => [battle.a, battle.b].includes(c.id) && c.available === false);
+        if (down) throw new HttpError(400, `${down.name} is unavailable right now (${down.note ?? 'the provider refuses it'}). Pick another contestant.`);
+      }
       const decoded = decodeImages(images); // validates type, size and file signature
       const isFirstMessage = chat.messages.length === 0;
       const prior = chat.messages.map((m) => ({ role: m.role, content: m.content, imageIds: (m.images ?? []).map((i) => i.imageId) }));
@@ -159,28 +180,47 @@ export function chatRoutes(ai) {
           sse.send('start', { userMessageId: String(userMsg._id) });
 
           // Title runs in parallel and never blocks or breaks the answer (generateTitle cannot throw).
+          let answerFailed = false; // a failed answer is discarded, so its title must not be announced after the error
           const titleTask = isFirstMessage
             ? ai.generateTitle(titleSource).then(async (title) => {
                 await Chat.updateOne({ _id: chat._id }, { $set: { title } }, { timestamps: false });
-                sse.send('title', { title });
+                if (!answerFailed) sse.send('title', { title });
               })
             : Promise.resolve();
           const titleDone = titleTask.catch((e) => console.error('Saving title failed:', e.message));
 
           let result;
+          let battleRecord;
           try {
-            result = await ai.streamChat({
-              messages,
-              signal: ac.signal,
-              options: { webSearch, deepExplain, tier },
-              toolContext: { previousUserMessages },
-              onToken: (t) => sse.send('token', { text: t }),
-              onSolver: (s) => sse.send('solver', s),
-              onNotice: (message) => sse.send('notice', { message }),
-            });
+            if (battle) {
+              const out = await runBattle({
+                ai,
+                contestants: [battle.a, battle.b],
+                content,
+                messages,
+                previousUserMessages,
+                options: { webSearch, deepExplain },
+                signal: ac.signal,
+                send: (event, data) => sse.send(event, data),
+              });
+              result = out;
+              battleRecord = out.record;
+            } else {
+              result = await ai.streamChat({
+                messages,
+                signal: ac.signal,
+                options: { webSearch, deepExplain, tier },
+                toolContext: { previousUserMessages },
+                onToken: (t) => sse.send('token', { text: t }),
+                onSolver: (s) => sse.send('solver', s),
+                onNotice: (message) => sse.send('notice', { message }),
+                onActivity: (a) => sse.send('activity', a),
+              });
+            }
           } catch (err) {
             if (!ac.signal.aborted) {
               console.error('Model call failed:', err);
+              answerFailed = true;
               // Drop the unanswered user message so the client's Retry does not create a duplicate.
               await Chat.updateOne({ _id: chat._id }, { $pull: { messages: { _id: userMsg._id } } }, { timestamps: false }).catch(() => {});
               if (imageDocs.length) await Image.deleteMany({ _id: { $in: imageDocs.map((d) => d._id) } }).catch(() => {});
@@ -195,13 +235,15 @@ export function chatRoutes(ai) {
 
           // Save the full answer, or the partial text if the user stopped it.
           let saved = null;
-          if (result.text.trim() || result.solver.length) {
+          if (result.text.trim() || result.solver.length || (battleRecord && (battleRecord.a.content.trim() || battleRecord.b.content.trim()))) {
             saved = {
               _id: new mongoose.Types.ObjectId(),
               role: 'assistant',
               content: result.text,
               solver: result.solver,
               ...(result.sources?.length ? { sources: result.sources } : {}),
+              ...(battleRecord ? { battle: battleRecord } : {}),
+              ...(result.activity?.length ? { activity: result.activity } : {}),
               createdAt: new Date(),
             };
             await Chat.updateOne({ _id: chat._id }, { $push: { messages: saved } });

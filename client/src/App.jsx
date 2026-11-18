@@ -9,6 +9,7 @@ import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
 import Chat from './pages/Chat.jsx';
 import Profile from './pages/Profile.jsx';
+import Shastrarth from './pages/Shastrarth.jsx';
 
 export default function App() {
   const { loading, booted } = useAuth();
@@ -36,6 +37,10 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             {/* "/chat" and "/chat/c/:id" share one Chat instance so state survives when a new chat gets its id. */}
             <Route path="/chat" element={<Chat />}>
+              <Route path="c/:id" />
+            </Route>
+            {/* The dedicated battle arena; "/shastrarth/c/:id" reopens a saved session (same instance, like the chat). */}
+            <Route path="/shastrarth" element={<Shastrarth />}>
               <Route path="c/:id" />
             </Route>
             <Route path="/profile" element={<Profile />} />

@@ -1,4 +1,4 @@
-// DEV/TEST STAND-IN for Gemini and Mistral (enabled with AI_MOCK=1). It is NOT a language model.
+// DEV/TEST STAND-IN for the AI providers (enabled with AI_MOCK=1). It is NOT a language model.
 // It implements the same SDK surface as the real clients, so the real streaming, history, tool-calling
 // and title code paths run end to end without API keys. It uses simple regexes to decide which tool to call.
 
@@ -53,7 +53,7 @@ function compose(responses) {
 export function createMockGeminiClient({ delayMs = 6 } = {}) {
   return {
     models: {
-      async generateContentStream({ contents, config }) {
+      async generateContentStream({ model, contents, config }) {
         const signal = config?.abortSignal;
         const last = contents.at(-1);
         const responses = last.parts.filter((p) => p.functionResponse).map((p) => p.functionResponse);
@@ -61,6 +61,19 @@ export function createMockGeminiClient({ delayMs = 6 } = {}) {
         return (async function* () {
           if (signal?.aborted) throw abortError();
           const images = last.parts.filter((p) => p.inlineData).length;
+          if (responses.length === 0 && /sloppy/.test(model ?? '')) {
+            // A deliberately careless contestant for the Shastrarth demo: no tools, a wrong sum, an invented date.
+            const q = textOf(last);
+            const plan = planCall(q, contents);
+            const text = plan.name === 'vedic_multiply'
+              ? `Quick one: ${plan.args.a} × ${plan.args.b} = ${BigInt(plan.args.a) * BigInt(plan.args.b) + 1n}. Easy!`
+              : 'This was built in 1337 CE and is a proven miracle of lost advanced technology that nobody can explain.';
+            for (let i = 0; i < text.length; i += 10) {
+              await sleep(delayMs);
+              yield { candidates: [{ content: { parts: [{ text: text.slice(i, i + 10) }] } }] };
+            }
+            return;
+          }
           if (responses.length === 0) {
             const userText = textOf(last);
             const note = images ? `_(Mock model: I can see ${images} attached image${images > 1 ? 's' : ''}, but a real model is needed to read them.)_` : '';
@@ -94,14 +107,12 @@ export function createMockGeminiClient({ delayMs = 6 } = {}) {
   };
 }
 
-export function createMockMistralClient() {
-  return {
-    chat: {
-      async complete({ messages }) {
-        const first = messages.at(-1).content.replace(/^First message of the chat:\n/, '');
-        const title = first.split(/\s+/).slice(0, 4).join(' ');
-        return { choices: [{ message: { content: title } }] };
-      },
-    },
+// Stands in for Cohere's chat endpoint: the "title" is just the first four words.
+export function createMockCohereFetch() {
+  return async (_url, { body }) => {
+    const { messages } = JSON.parse(body);
+    const first = messages.at(-1).content.replace(/^First message of the chat:\n/, '');
+    const title = first.split(/\s+/).slice(0, 4).join(' ');
+    return { ok: true, status: 200, json: async () => ({ message: { content: [{ type: 'text', text: title }] } }) };
   };
 }

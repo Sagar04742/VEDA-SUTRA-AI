@@ -17,6 +17,11 @@ const messageSchema = new mongoose.Schema({
   solver: { type: [solverSchema], default: undefined },
   // Web pages used when "Web search" was on.
   sources: { type: [new mongoose.Schema({ title: String, uri: String }, { _id: false })], default: undefined },
+  // Shastrarth (battle): both answers with their Pramana scores. content above holds the winner's text (the chat's memory).
+  battle: { type: mongoose.Schema.Types.Mixed, default: undefined },
+  compare: { type: mongoose.Schema.Types.Mixed, default: undefined }, // the first name of this feature: old chats still open
+  // What the assistant did while answering (knowledge-base and web searches, solver calls).
+  activity: { type: mongoose.Schema.Types.Mixed, default: undefined },
   createdAt: { type: Date, default: Date.now },
 });
 

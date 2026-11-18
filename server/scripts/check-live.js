@@ -1,7 +1,7 @@
 // One-command check that your configuration really works end to end:
 //   npm run check:live
 // It checks the env vars, MongoDB, the knowledge base, then runs real conversations through the whole
-// app (login -> chat -> Gemini streaming -> tools -> Mistral title), including the memory test
+// app (login -> chat -> Gemini streaming -> tools -> Cohere title), including the memory test
 // "What is Vedic math?" followed by "What are the types of it?". It cleans up the test user afterwards.
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
@@ -13,10 +13,16 @@ import Chat from '../models/Chat.js';
 import Knowledge from '../models/Knowledge.js';
 
 let failures = 0;
+let warnings = 0;
 const ok = (name, pass, detail = '') => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
   if (!pass) failures++;
   return pass;
+};
+// A warning does not stop the check: the app falls back to the other providers.
+const warn = (name, pass, detail = '') => {
+  console.log(`${pass ? 'PASS' : 'WARN'}  ${name}${detail ? `  (${detail})` : ''}`);
+  if (!pass) warnings++;
 };
 const mock = process.env.AI_MOCK === '1';
 if (mock) console.log('Note: AI_MOCK=1 is set, so this checks the plumbing with the dev mock, not your real API keys.\n');
@@ -38,7 +44,28 @@ async function main() {
   ok('MONGO_URI is set', Boolean(env.mongoUri));
   const ai = createAi();
   ok('Gemini configured (GEMINI_API_KEY + GEMINI_MODEL)', !ai.configError(), ai.configError() ?? '');
-  ok('Mistral configured (MISTRAL_API_KEY + MISTRAL_MODEL)', mock || Boolean(env.mistral.apiKey && env.mistral.model), 'titles fall back to the first 40 chars otherwise');
+  ok('Cohere configured (COHERE_API_KEY): chat titles', mock || Boolean(env.cohere.apiKey), 'titles fall back to the first 40 chars otherwise');
+  ok('Groq configured (GROQ_API_KEY)', mock || Boolean(env.groq.apiKey), 'Plus/Pro use Gemini only otherwise');
+  ok('Mistral configured (MISTRAL_API_KEY): Lite level', mock || Boolean(env.mistral.apiKey), 'Lite falls back to Gemini otherwise');
+  // Does each key actually work? A key that is set but rejected is the most common surprise (a stray character,
+  // a doubled prefix, a revoked key), so each provider is asked a free "list models" question.
+  if (!mock) {
+    const probes = [
+      ['Groq key accepted', env.groq.apiKey, 'https://api.groq.com/openai/v1/models', (k) => ({ authorization: `Bearer ${k}` })],
+      ['OpenAI key accepted', env.openai.apiKey, 'https://api.openai.com/v1/models', (k) => ({ authorization: `Bearer ${k}` })],
+      ['Mistral key accepted', env.mistral.apiKey, 'https://api.mistral.ai/v1/models', (k) => ({ authorization: `Bearer ${k}` })],
+      ['Cohere key accepted', env.cohere.apiKey, 'https://api.cohere.com/v1/models', (k) => ({ authorization: `Bearer ${k}` })],
+    ];
+    for (const [label, key, url, headers] of probes) {
+      if (!key) continue;
+      try {
+        const res = await fetch(url, { headers: headers(key), signal: AbortSignal.timeout(10000) });
+        warn(label, res.ok, res.ok ? '' : `HTTP ${res.status}: the key is rejected. Re-copy it from the provider's dashboard (the app then falls back to the other providers).`);
+      } catch (e) {
+        warn(label, false, `could not reach the service (${e.message})`);
+      }
+    }
+  }
   if (failures) return;
 
   // 2. Database + knowledge base
@@ -122,5 +149,5 @@ try {
 } catch (e) {
   ok('script ran without errors', false, e.message);
 }
-console.log(failures ? `\n${failures} check(s) failed.` : '\nAll checks passed.');
+console.log(failures ? `\n${failures} check(s) failed.` : `\nAll checks passed${warnings ? `, with ${warnings} warning(s) above` : ''}.`);
 process.exit(failures ? 1 : 0);

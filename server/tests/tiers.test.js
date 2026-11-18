@@ -31,7 +31,7 @@ describe('answer levels (model picker)', () => {
 
   it('shows the browser only names, descriptions and the model id', () => {
     const shown = publicTier(buildTiers(full)[2]);
-    expect(Object.keys(shown).sort()).toEqual(['id', 'model', 'name', 'tagline']);
+    expect(Object.keys(shown).sort()).toEqual(['id', 'model', 'name', 'provider', 'tagline']);
     expect(shown.model).toBe('pro-m');
   });
 
@@ -140,7 +140,7 @@ describe('GET /api/models', () => {
     const { createApp } = await import('../src/app.js');
     const app = createApp({ ai: { configError: () => null, tiers: () => buildTiers(full).map(publicTier) } });
     expect((await request(app).get('/api/models')).status).toBe(401);
-  });
+  }, 120000); // the first import of the whole app is slow when many test files start at once
 });
 
 describe('Deep explain', () => {

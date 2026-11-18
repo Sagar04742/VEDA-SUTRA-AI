@@ -1,7 +1,9 @@
 import { GoogleGenAI } from '@google/genai';
 import { buildSystemPrompt } from './prompt.js';
-import { executeTool, isSolverTool, toolDeclarations, webSearchDeclaration } from './tools.js';
-import { humanDuration, parseQuotaError } from '../utils/quota.js';
+import { executeTool, isSolverTool, solverToolNames, toolDeclarations, webSearchDeclaration } from './tools.js';
+import { planTools } from './providers/toolLoop.js';
+import { describeCall, describeResult } from './activity.js';
+import { humanDuration, isSwitchable, parseQuotaError } from '../utils/quota.js';
 
 const SEARCH_BLOCK_MS = 30 * 60 * 1000;
 const MAX_TOOL_ROUNDS = 5;
@@ -15,9 +17,6 @@ const toContents = (messages) =>
     return { role: m.role === 'assistant' ? 'model' : 'user', parts };
   });
 
-// Errors worth answering again on the next model: rate limits, a busy model, or a model that is gone.
-const isSwitchable = (err) => parseQuotaError(err).rateLimited || [500, 503, 404].includes(err?.status ?? err?.code);
-
 // Friendly, non-leaky error info for the user: { message, code, retryAfterSeconds }.
 export function describeAiError(err) {
   const quota = parseQuotaError(err);
@@ -30,9 +29,9 @@ export function describeAiError(err) {
         : 'The AI service is busy or over its free usage limit. Please try again in a minute or two.';
     return { message, code: 'rate_limit', retryAfterSeconds: quota.daily ? null : wait ?? 60, daily: quota.daily };
   }
-  const status = err?.status ?? err?.code;
-  if (status === 401 || status === 403) return { message: 'The AI service rejected the API key. Check GEMINI_API_KEY on the server.', code: 'auth' };
-  if (status === 404) return { message: 'The AI model was not found. Check GEMINI_MODEL on the server.', code: 'model' };
+  const status = err?.status ?? err?.statusCode ?? err?.code;
+  if (status === 401 || status === 403) return { message: 'The AI service rejected an API key. Check the keys in server/.env.', code: 'auth' };
+  if (status === 404) return { message: 'The AI model was not found. Check the model names (GEMINI_MODEL, TIER_*) in server/.env.', code: 'model' };
   return { message: 'The AI service could not complete the answer. Please try again.', code: 'ai_error' };
 }
 
@@ -47,6 +46,27 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
   const blockSearch = () => (search.blockedUntil = Date.now() + SEARCH_BLOCK_MS);
 
   return {
+    // One tiny real request: can this model answer right now? (The readiness check.)
+    async ping(modelName) {
+      if (client) return;
+      const out = await getClient().models.generateContent({ model: modelName, contents: 'Reply with the single word OK.', config: { maxOutputTokens: 64 } });
+      if (!out?.candidates?.length) throw Object.assign(new Error('The reply was empty.'), { status: 502 });
+    },
+
+    // Does the key work and does the model exist? Asks for the model's description: no generation quota is used.
+    async check(modelName) {
+      if (client) return { ok: true };
+      try {
+        await getClient().models.get({ model: modelName });
+        return { ok: true };
+      } catch (err) {
+        const status = err?.status ?? err?.code;
+        if (status === 401 || status === 403 || /API key/i.test(String(err?.message))) return { ok: false, status: 401, reason: 'key rejected' };
+        if (status === 404) return { ok: false, status: 404, reason: 'model not found' };
+        return { ok: true, unverified: true }; // busy, offline...: do not hold it against the model
+      }
+    },
+
     configError() {
       if (client) return null;
       if (!apiKey) return 'Gemini is not configured: set GEMINI_API_KEY in server/.env.';
@@ -69,6 +89,9 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
         if ([400, 403].includes(status) || (status === 429 && parseQuotaError(err).retryAfterSeconds == null)) blockSearch();
       }
     },
+
+    // Runs one model once (no fallback). Used by the cross-provider chain.
+    runModel: (modelName, args, shared) => runOnce(modelName, args, shared),
 
     // Streams an answer. messages = full conversation (already trimmed, ending with the new user turn).
     // Handles tool calls in a loop: model -> tool -> model, streaming text tokens the whole way.
@@ -95,17 +118,21 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
     },
   };
 
-  async function runOnce(modelName, { messages, signal, options = {}, onToken = () => {}, onSolver = () => {}, onNotice = () => {}, toolContext = {} }, shared) {
+  async function runOnce(modelName, { messages, signal, options = {}, onToken = () => {}, onSolver = () => {}, onNotice = () => {}, onActivity = () => {}, toolContext = {} }, shared) {
     const contents = toContents(messages);
     const systemInstruction = buildSystemPrompt(options);
     const maxRounds = options.deepExplain ? DEEP_TOOL_ROUNDS : MAX_TOOL_ROUNDS;
+    const plan = planTools(messages.at(-1), options); // which tool each of the first turns must call
     const solver = [];
+    const toolsUsed = [];
+    const activity = [];
+    const retrieved = [];
     const sources = new Map();
     // Web search: Google Search when the plan allows it, otherwise our own Wikipedia search tool.
     let useSearch = Boolean(options.webSearch) && !searchBlocked();
     let useWiki = Boolean(options.webSearch) && !useSearch;
     let text = '';
-    const result = (aborted) => ({ text, solver, sources: [...sources.values()], aborted });
+    const result = (aborted) => ({ text, solver, sources: [...sources.values()], toolsUsed, activity, retrieved, aborted });
 
     for (let round = 0; round <= maxRounds; round++) {
       // On the last allowed round, withhold the tools so the model must answer in text.
@@ -122,11 +149,19 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
         roundHasText = false;
         const declarations = [...toolDeclarations, ...(useWiki ? [webSearchDeclaration] : [])];
         const tools = useTools ? [{ functionDeclarations: declarations }, ...(useSearch ? [{ googleSearch: {} }] : [])] : [];
+        const forceNow = !useTools ? null : round === 0 ? plan.first : round === 1 && useWiki && !toolsUsed.includes('searchWeb') ? plan.second : null;
         try {
           const stream = await getClient().models.generateContentStream({
             model: modelName,
             contents,
-            config: { systemInstruction, ...(tools.length ? { tools } : {}), abortSignal: signal },
+            config: {
+              systemInstruction,
+              ...(tools.length ? { tools } : {}),
+              // First turn: the model must call the right tool (the exact solver or the knowledge base); with Web search
+              // on, the second turn must search Wikipedia. (Not combinable with Google Search grounding.)
+              ...(forceNow && tools.length && !useSearch ? { toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: forceNow === 'solver' ? solverToolNames : [forceNow] } } } : {}),
+              abortSignal: signal,
+            },
           });
 
           for await (const chunk of stream) {
@@ -180,9 +215,19 @@ export function createGeminiService({ apiKey, model, fallbackModel, client, retr
       contents.push({ role: 'model', parts: modelParts });
       const responses = [];
       for (const call of calls) {
+        toolsUsed.push(call.name);
+        const what = describeCall(call.name, call.args ?? {});
+        const callId = call.id ?? `call_${round}_${toolsUsed.length}`;
+        onActivity({ id: callId, phase: 'start', tool: call.name, ...what });
         const out = await executeTool(call.name, call.args ?? {}, toolContext);
+        const outcome = describeResult(call.name, out);
+        onActivity({ id: callId, phase: 'done', tool: call.name, kind: what.kind, text: what.text, result: outcome.text, count: outcome.count, items: outcome.items, entries: outcome.entries, pages: outcome.pages });
+        activity.push({ tool: call.name, kind: what.kind, text: what.text, result: outcome.text, count: outcome.count, items: outcome.items, entries: outcome.entries, pages: outcome.pages });
         if (call.name === 'searchWeb') {
-          for (const r of out.results ?? []) if (!sources.has(r.url)) sources.set(r.url, { title: r.title, uri: r.url });
+          for (const r of out.results ?? []) {
+            if (!sources.has(r.url)) sources.set(r.url, { title: r.title, uri: r.url });
+            if (r.extract) retrieved.push({ kind: 'web', title: r.title, url: r.url, text: r.extract });
+          }
         }
         if (isSolverTool(call.name) && !out.error) {
           const entry = { tool: call.name, args: call.args ?? {}, method: out.method, answer: out.answer, steps: out.steps };
